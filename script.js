@@ -98,6 +98,23 @@ const lootTables = {
     ]
 };
 
+const zombieTypes = {
+    walker: { health: 3, speed: 1, behavior: "aggressive", damageOnDeath: false, armored: false },
+    runner: { health: 2, speed: 2, behavior: "aggressive", damageOnDeath: false, armored: false },
+    brute:  { health: 5, speed: 1, behavior: "aggressive", damageOnDeath: false, armored: true  },
+    crawler:{ health: 2, speed: 1, behavior: "lurker",     damageOnDeath: false, armored: false },
+    exploder:{ health: 1, speed: 1, behavior: "aggressive", damageOnDeath: true,  armored: false }
+};
+
+const zombieSpawnTable = {
+    hospital: ["crawler", "walker"],
+    residential: ["walker", "runner"],
+    street: ["walker", "runner"],
+    warehouse: ["brute", "walker"],
+    office: ["walker", "crawler"]
+};
+
+
 const globalEventDefinitions = {
     acidRain: {
         duration: 3,
@@ -293,7 +310,7 @@ function createGrid() {
                 barricadeMaterial: null,
                 searchedAt: -Infinity,
                 visible: false,
-                explored: false
+                explored: false, spawnZone: (rand() < 0.05)
             };
             assignTileAttributes(areaGrid[y][x]);
             grid.appendChild(cell);
@@ -331,17 +348,27 @@ function updateVisibility() {
 
 function placeZombies(count) {
     zombies = [];
-    while (zombies.length < count) {
-        const zx = Math.floor(Math.random() * gridSize);
-        const zy = Math.floor(Math.random() * gridSize);
-        const tile = areaGrid[zy][zx];
-        if ((zx !== player.x || zy !== player.y) &&
-            !zombies.some(z => z.x === zx && z.y === zy) &&
-            !tile.barricaded &&
-            !tile.attributes.includes('safe') &&
-            !tile.attributes.includes('collapsed')) {
-            zombies.push({ x: zx, y: zy });
+    const all = [];
+    const zones = [];
+    for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+            const t = areaGrid[y][x];
+            if ((x !== player.x || y !== player.y) &&
+                !t.barricaded &&
+                !t.attributes.includes('safe') &&
+                !t.attributes.includes('collapsed')) {
+                all.push({ x, y });
+                if (t.spawnZone) zones.push({ x, y });
+            }
         }
+    }
+    while (zombies.length < count && all.length) {
+        const pool = zones.length ? zones : all;
+        const idx = Math.floor(Math.random() * pool.length);
+        const pos = pool.splice(idx, 1)[0];
+        const idxAll = all.findIndex(p => p.x === pos.x && p.y === pos.y);
+        if (idxAll !== -1) all.splice(idxAll, 1);
+        zombies.push(createZombie(pos.x, pos.y));
     }
     draw();
 }
@@ -359,6 +386,23 @@ function rollLoot(type, bonus = 0) {
     return null;
 }
 
+function createZombie(x, y) {
+    const areaType = areaGrid[y][x].type;
+    const table = zombieSpawnTable[areaType] || ['walker'];
+    const type = table[Math.floor(Math.random() * table.length)];
+    const def = zombieTypes[type] || zombieTypes.walker;
+    return {
+        x,
+        y,
+        type,
+        health: def.health,
+        speed: def.speed,
+        behavior: def.behavior,
+        damageOnDeath: def.damageOnDeath,
+        armored: def.armored
+    };
+}
+
 function spawnZombieAtEdge() {
     const options = [];
     for (let x = 0; x < gridSize; x++) {
@@ -368,6 +412,11 @@ function spawnZombieAtEdge() {
     for (let y = 1; y < gridSize - 1; y++) {
         options.push({ x: 0, y });
         options.push({ x: gridSize - 1, y });
+    }
+    for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+            if (areaGrid[y][x].spawnZone) options.push({ x, y });
+        }
     }
     while (options.length) {
         const idx = Math.floor(Math.random() * options.length);
@@ -379,7 +428,7 @@ function spawnZombieAtEdge() {
             areaGrid[pos.y][pos.x].attributes.includes('collapsed')) {
             continue;
         }
-        zombies.push({ x: pos.x, y: pos.y });
+        zombies.push(createZombie(pos.x, pos.y));
         return true;
     }
     return false;
@@ -406,6 +455,7 @@ function draw() {
         const tile = areaGrid[y][x];
 
         if (tile.visible) {
+            if (tile.spawnZone) cell.classList.add("spawn-zone");
             cell.classList.add('tile-visible');
             if (tile.barricaded) {
                 let tier = 'barricade-strong';
@@ -431,7 +481,7 @@ function draw() {
     zombies.forEach(z => {
         if (areaGrid[z.y][z.x].visible) {
             const cell = getCell(z.x, z.y);
-            cell.classList.add('zombie');
+            cell.classList.add('zombie', `zombie-${z.type}`);
         }
     });
     const playerCell = getCell(player.x, player.y);
@@ -513,6 +563,7 @@ function getDescriptionForTile(x, y) {
     if (tile.attributes.includes('fire')) attrText += ' Flames roar here.';
     if (tile.attributes.includes('radiation')) attrText += ' A sickly glow radiates.';
     if (tile.attributes.includes('quarantine')) attrText += ' Military barricades stand here.';
+    if (tile.spawnZone) attrText += ' Signs of heavy undead activity.';
     return `${base} ${barricadeText} ${attrText} ${mod}`.trim();
 }
 
@@ -588,9 +639,18 @@ function attack() {
     }
     const index = zombies.findIndex(z => z.x === player.x && z.y === player.y);
     if (index !== -1) {
-        zombies.splice(index, 1);
+        const z = zombies[index];
+        z.health -= 1;
         player.ap -= 2;
-        log('Zombie defeated!');
+        log('You strike the zombie.');
+        if (z.health <= 0) {
+            if (z.damageOnDeath) {
+                player.health -= 1;
+                log('The zombie explodes, injuring you!', 'danger');
+            }
+            zombies.splice(index, 1);
+            log('Zombie defeated!');
+        }
     }
     moveZombies({ x: player.x, y: player.y });
     draw();
@@ -829,62 +889,71 @@ function nextTurn() {
 function moveZombies(prevPos) {
     if (worldState.timeOfDay === 'day' && worldState.turn % 2 === 1) return;
     const newPositions = [];
-    const moveOne = z => {
+
+    const tryMove = (nx, ny) => {
+        if (nx < 0 || nx >= gridSize || ny < 0 || ny >= gridSize) return false;
+        if (nx === player.x && ny === player.y) return false;
+        if (newPositions.some(p => p.x === nx && p.y === ny)) return false;
+        const t = areaGrid[ny][nx];
+        if (t.barricaded) return false;
+        if (t.attributes.includes('safe')) return false;
+        if (t.attributes.includes('collapsed')) return false;
+        return true;
+    };
+
+    const stepToward = z => {
         let target = { x: z.x, y: z.y };
         const dx = player.x - z.x;
         const dy = player.y - z.y;
-
-        const tryMove = (nx, ny) => {
-            if (nx < 0 || nx >= gridSize || ny < 0 || ny >= gridSize) return false;
-            if (nx === player.x && ny === player.y) return false;
-            if (newPositions.some(p => p.x === nx && p.y === ny)) return false;
-            const t = areaGrid[ny][nx];
-            if (t.barricaded) return false;
-            if (t.attributes.includes('safe')) return false;
-            if (t.attributes.includes('collapsed')) return false;
-            return true;
-        };
-
         const horiz = { x: z.x + Math.sign(dx), y: z.y };
         const vert = { x: z.x, y: z.y + Math.sign(dy) };
-
         if (Math.abs(dx) >= Math.abs(dy)) {
-            if (dx !== 0 && tryMove(horiz.x, horiz.y)) {
-                target = horiz;
-            } else if (dy !== 0 && tryMove(vert.x, vert.y)) {
-                target = vert;
-            }
+            if (dx !== 0 && tryMove(horiz.x, horiz.y)) target = horiz;
+            else if (dy !== 0 && tryMove(vert.x, vert.y)) target = vert;
         } else {
-            if (dy !== 0 && tryMove(vert.x, vert.y)) {
-                target = vert;
-            } else if (dx !== 0 && tryMove(horiz.x, horiz.y)) {
-                target = horiz;
-            }
+            if (dy !== 0 && tryMove(vert.x, vert.y)) target = vert;
+            else if (dx !== 0 && tryMove(horiz.x, horiz.y)) target = horiz;
         }
-
         if (target.x === prevPos.x && target.y === prevPos.y) {
             log('A zombie shambles into where you just were.');
         }
-
         newPositions.push(target);
         return target;
     };
 
-    let iterations = 1;
-    if (worldState.activeEvents.includes('hordeSurge')) iterations = 2;
+    const stepRandom = z => {
+        const dirs = [
+            { x: 1, y: 0 }, { x: -1, y: 0 },
+            { x: 0, y: 1 }, { x: 0, y: -1 }
+        ];
+        const shuffled = dirs.sort(() => Math.random() - 0.5);
+        for (const d of shuffled) {
+            const nx = z.x + d.x;
+            const ny = z.y + d.y;
+            if (tryMove(nx, ny)) return { x: nx, y: ny };
+        }
+        newPositions.push({ x: z.x, y: z.y });
+        return z;
+    };
 
     zombies = zombies.map(z => {
-        let moved = z;
-        for (let i = 0; i < iterations; i++) {
+        let moved = { ...z };
+        let steps = z.speed || 1;
+        if (worldState.activeEvents.includes('hordeSurge')) steps += 1;
+        for (let i = 0; i < steps; i++) {
+            let mover = stepToward;
+            if (moved.behavior === 'wander') mover = stepRandom;
+            if (moved.behavior === 'lurker' &&
+                Math.abs(player.x - moved.x) + Math.abs(player.y - moved.y) > 2) {
+                mover = stepRandom;
+            }
             if (worldState.activeEvents.includes('electricalStorm')) {
                 const r = Math.random();
-                if (r < 0.33) {
-                    continue; // skip this iteration
-                }
-                moved = moveOne(moved);
-                if (r > 0.66) moved = moveOne(moved); // move twice
+                if (r < 0.33) continue;
+                moved = mover(moved);
+                if (r > 0.66) moved = mover(moved);
             } else {
-                moved = moveOne(moved);
+                moved = mover(moved);
             }
         }
         return moved;
