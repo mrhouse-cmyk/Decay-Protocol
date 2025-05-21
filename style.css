@@ -67,6 +67,22 @@ body {
 .zombie {
     background: #700 !important;
 }
+.zombie-runner {
+    background: #900 !important;
+}
+.zombie-brute {
+    background: #522 !important;
+}
+.zombie-crawler {
+    background: #550 !important;
+}
+.zombie-exploder {
+    background: #a30 !important;
+}
+
+.spawn-zone {
+    box-shadow: inset 0 0 0 2px yellow;
+}
 
 .area-hospital {
     background: #355;
