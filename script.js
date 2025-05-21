@@ -1,1 +1,133 @@
+const gridSize = 10;
+let player = { x: 0, y: 0, health: 10, ap: 20 };
+let zombies = [];
 
+function init() {
+    createGrid();
+    placePlayer();
+    placeZombies(5);
+    updateStats();
+    log('Game started.');
+}
+
+function createGrid() {
+    const grid = document.getElementById('grid');
+    for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+            const cell = document.createElement('div');
+            cell.classList.add('cell');
+            cell.dataset.x = x;
+            cell.dataset.y = y;
+            grid.appendChild(cell);
+        }
+    }
+}
+
+function placePlayer() {
+    player.x = Math.floor(gridSize / 2);
+    player.y = Math.floor(gridSize / 2);
+    draw();
+}
+
+function placeZombies(count) {
+    zombies = [];
+    while (zombies.length < count) {
+        const zx = Math.floor(Math.random() * gridSize);
+        const zy = Math.floor(Math.random() * gridSize);
+        if ((zx !== player.x || zy !== player.y) && !zombies.some(z => z.x === zx && z.y === zy)) {
+            zombies.push({ x: zx, y: zy });
+        }
+    }
+    draw();
+}
+
+function draw() {
+    const cells = document.querySelectorAll('.cell');
+    cells.forEach(cell => {
+        cell.classList.remove('player', 'zombie');
+    });
+    zombies.forEach(z => {
+        const cell = getCell(z.x, z.y);
+        cell.classList.add('zombie');
+    });
+    const playerCell = getCell(player.x, player.y);
+    playerCell.classList.add('player');
+
+    const attackBtn = document.getElementById('attack');
+    if (zombies.some(z => z.x === player.x && z.y === player.y)) {
+        attackBtn.style.display = 'inline-block';
+    } else {
+        attackBtn.style.display = 'none';
+    }
+}
+
+function getCell(x, y) {
+    return document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+}
+
+function move(dx, dy) {
+    if (player.ap <= 0) {
+        log('Not enough AP to move.');
+        return;
+    }
+    const nx = player.x + dx;
+    const ny = player.y + dy;
+    if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+        player.x = nx;
+        player.y = ny;
+        player.ap -= 1;
+        log(`Moved to (${nx}, ${ny}).`);
+        draw();
+        updateStats();
+    }
+}
+
+function attack() {
+    if (player.ap < 2) {
+        log('Not enough AP to attack.');
+        return;
+    }
+    const index = zombies.findIndex(z => z.x === player.x && z.y === player.y);
+    if (index !== -1) {
+        zombies.splice(index, 1);
+        player.ap -= 2;
+        log('Zombie defeated!');
+        draw();
+        updateStats();
+    }
+}
+
+function rest() {
+    const before = player.ap;
+    player.ap = Math.min(20, player.ap + 5);
+    const gained = player.ap - before;
+    if (gained > 0) {
+        log(`Rested and regained ${gained} AP.`);
+    } else {
+        log('AP is already full.');
+    }
+    updateStats();
+}
+
+function updateStats() {
+    document.getElementById('health').textContent = player.health;
+    document.getElementById('ap').textContent = player.ap;
+}
+
+function log(message) {
+    const logEl = document.getElementById('log');
+    const entry = document.createElement('div');
+    entry.textContent = message;
+    logEl.prepend(entry);
+}
+
+// Bind buttons
+window.addEventListener('load', () => {
+    init();
+    document.getElementById('north').addEventListener('click', () => move(0, -1));
+    document.getElementById('south').addEventListener('click', () => move(0, 1));
+    document.getElementById('west').addEventListener('click', () => move(-1, 0));
+    document.getElementById('east').addEventListener('click', () => move(1, 0));
+    document.getElementById('attack').addEventListener('click', attack);
+    document.getElementById('rest').addEventListener('click', rest);
+});
