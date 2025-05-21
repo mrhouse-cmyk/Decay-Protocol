@@ -2,6 +2,23 @@ const gridSize = 10;
 let player = { x: 0, y: 0, health: 10, ap: 20 };
 let zombies = [];
 
+function disableControls() {
+    document.querySelectorAll('#controls button').forEach(btn => btn.disabled = true);
+}
+
+function zombieAttack() {
+    if (zombies.some(z => z.x === player.x && z.y === player.y)) {
+        player.health -= 1;
+        log('A zombie attacked you for 1 damage.');
+        if (player.health <= 0) {
+            player.health = 0;
+            log('You have died.');
+            disableControls();
+        }
+        updateStats();
+    }
+}
+
 function init() {
     createGrid();
     placePlayer();
@@ -81,6 +98,7 @@ function move(dx, dy) {
         moveZombies(prev);
         draw();
         updateStats();
+        zombieAttack();
     }
 }
 
@@ -98,6 +116,7 @@ function attack() {
     moveZombies({ x: player.x, y: player.y });
     draw();
     updateStats();
+    zombieAttack();
 }
 
 function rest() {
@@ -112,6 +131,7 @@ function rest() {
     moveZombies({ x: player.x, y: player.y });
     draw();
     updateStats();
+    zombieAttack();
 }
 
 function moveZombies(prevPos) {
