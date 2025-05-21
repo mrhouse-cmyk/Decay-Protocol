@@ -7,4 +7,6 @@ Tiles may also have special attributes like traps or loot chests that change the
 
 Zombies now come in several types with their own behaviors such as aggressive walkers, fast runners and armored brutes. Their stats influence how quickly they move and how many hits they take.
 
+The inventory system tracks item weight and durability. Carrying capacity is limited, so choose what to take with you. Crafting recipes allow combining materials found while scavenging into useful gear.
+
 Open `index.html` in a browser to play.

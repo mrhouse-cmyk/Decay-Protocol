@@ -42,9 +42,9 @@ function assignTileAttributes(tile) {
 }
 let areaGrid = [];
 let turn = 0;
-let player = { x: 0, y: 0, health: maxHealth, ap: maxAP, perks: [], visionRange: 2 };
+let player = { x: 0, y: 0, health: maxHealth, ap: maxAP, perks: [], visionRange: 2, maxWeight: 20 };
 let zombies = [];
-let inventory = {};
+let inventory = [];
 
 let worldState = {
     turn: 0,
@@ -60,6 +60,24 @@ const barricadeDescriptors = {
     'Heavy Furniture': 'a wall of broken furniture braced in place.'
 };
 
+const itemDefinitions = {
+    'First Aid Kit': { weight: 1, type: 'consumable', rarity: 'rare', description: 'Heals a large amount of health.', stackable: true },
+    'Bandage': { weight: 0.2, type: 'consumable', rarity: 'common', description: 'Stops bleeding and heals slightly.', stackable: true },
+    'Energy Drink': { weight: 0.2, type: 'consumable', rarity: 'common', description: 'Restores a small amount of AP.', stackable: true },
+    'Wood Planks': { weight: 1, type: 'material', rarity: 'common', description: 'Sturdy planks used for barricading.', stackable: true },
+    'Metal Panels': { weight: 2, type: 'material', rarity: 'rare', description: 'Scrap metal perfect for barricades.', stackable: true },
+    'Heavy Furniture': { weight: 5, type: 'material', rarity: 'epic', description: 'Large pieces of furniture for strong barricades.', stackable: true },
+    'Crowbar': { weight: 2, type: 'tool', rarity: 'uncommon', description: 'A solid iron crowbar, useful for breaking into locked doors or barricading.', maxDurability: 10 },
+    'Makeshift Shield': { weight: 3, type: 'tool', rarity: 'uncommon', description: 'A crude shield offering temporary protection.', maxDurability: 5 }
+};
+
+const craftingRecipes = [
+    {
+        result: 'Makeshift Shield',
+        ingredients: { 'Wood Planks': 2, 'Metal Panels': 1 }
+    }
+];
+
 const lootTables = {
     hospital: [
         { name: 'First Aid Kit', chance: 0.2 },
@@ -67,6 +85,7 @@ const lootTables = {
         { name: 'Energy Drink', chance: 0.1 },
         { name: 'Wood Planks', chance: 0.1 },
         { name: 'Metal Panels', chance: 0.05 },
+        { name: 'Crowbar', chance: 0.05 },
         { name: 'Heavy Furniture', chance: 0.02 }
     ],
     residential: [
@@ -74,19 +93,22 @@ const lootTables = {
         { name: 'Energy Drink', chance: 0.2 },
         { name: 'Wood Planks', chance: 0.2 },
         { name: 'Metal Panels', chance: 0.1 },
+        { name: 'Crowbar', chance: 0.05 },
         { name: 'Heavy Furniture', chance: 0.05 }
     ],
     street: [
         { name: 'Bandage', chance: 0.1 },
         { name: 'Energy Drink', chance: 0.1 },
         { name: 'Wood Planks', chance: 0.15 },
-        { name: 'Metal Panels', chance: 0.05 }
+        { name: 'Metal Panels', chance: 0.05 },
+        { name: 'Crowbar', chance: 0.05 }
     ],
     warehouse: [
         { name: 'Energy Drink', chance: 0.3 },
         { name: 'Bandage', chance: 0.2 },
         { name: 'Wood Planks', chance: 0.3 },
         { name: 'Metal Panels', chance: 0.2 },
+        { name: 'Crowbar', chance: 0.15 },
         { name: 'Heavy Furniture', chance: 0.1 }
     ],
     office: [
@@ -94,6 +116,7 @@ const lootTables = {
         { name: 'Energy Drink', chance: 0.2 },
         { name: 'Wood Planks', chance: 0.15 },
         { name: 'Metal Panels', chance: 0.1 },
+        { name: 'Crowbar', chance: 0.05 },
         { name: 'Heavy Furniture', chance: 0.05 }
     ]
 };
@@ -245,6 +268,81 @@ function rollGlobalEvent() {
     }
 }
 
+function getTotalWeight() {
+    return inventory.reduce((sum, item) => sum + item.weight * item.quantity, 0);
+}
+
+function updateWeight() {
+    const weightEl = document.getElementById('current-weight');
+    if (weightEl) weightEl.textContent = getTotalWeight().toFixed(1);
+}
+
+function findItem(name) {
+    return inventory.find(it => it.name === name);
+}
+
+function addItemToInventory(name) {
+    const def = itemDefinitions[name];
+    if (!def) return false;
+    if (getTotalWeight() + def.weight > player.maxWeight) {
+        log(`You cannot carry the ${name}; it's too heavy.`);
+        return false;
+    }
+    let item = findItem(name);
+    if (item && def.stackable) {
+        item.quantity += 1;
+    } else {
+        inventory.push({
+            name,
+            quantity: 1,
+            weight: def.weight,
+            durability: def.maxDurability || def.durability || null,
+            maxDurability: def.maxDurability || null,
+            type: def.type,
+            description: def.description,
+            rarity: def.rarity,
+            stackable: def.stackable
+        });
+    }
+    updateWeight();
+    return true;
+}
+
+function removeItemFromInventory(name, qty = 1) {
+    const item = findItem(name);
+    if (!item) return false;
+    if (item.stackable || item.quantity > qty) {
+        item.quantity -= qty;
+        if (item.quantity <= 0) inventory = inventory.filter(i => i !== item);
+    } else {
+        inventory = inventory.filter(i => i !== item);
+    }
+    updateWeight();
+    return true;
+}
+
+function canCraft(recipe) {
+    return Object.entries(recipe.ingredients).every(([name, qty]) => {
+        const item = findItem(name);
+        return item && item.quantity >= qty;
+    });
+}
+
+function craftItem(index) {
+    const recipe = craftingRecipes[index];
+    if (!recipe) return;
+    if (!canCraft(recipe)) {
+        log('Missing ingredients for crafting.');
+        return;
+    }
+    Object.entries(recipe.ingredients).forEach(([name, qty]) => {
+        removeItemFromInventory(name, qty);
+    });
+    addItemToInventory(recipe.result);
+    log(`Crafted ${recipe.result}.`);
+    updateInventory();
+}
+
 function zombieAttack() {
     if (zombies.some(z => z.x === player.x && z.y === player.y)) {
         player.health -= 1;
@@ -272,6 +370,8 @@ function init() {
     placePlayer();
     placeZombies(5);
     updateStats();
+    const maxW = document.getElementById('max-weight');
+    if (maxW) maxW.textContent = player.maxWeight;
     updateTurn();
     updateTileInfo();
     updateInventory();
@@ -640,7 +740,19 @@ function attack() {
     const index = zombies.findIndex(z => z.x === player.x && z.y === player.y);
     if (index !== -1) {
         const z = zombies[index];
-        z.health -= 1;
+        let damage = 1;
+        const weapon = findItem('Crowbar');
+        if (weapon) {
+            damage = 2;
+            if (weapon.durability != null) {
+                weapon.durability -= 1;
+                if (weapon.durability <= 0) {
+                    removeItemFromInventory('Crowbar', 1);
+                    log('Your Crowbar broke.');
+                }
+            }
+        }
+        z.health -= damage;
         player.ap -= 2;
         log('You strike the zombie.');
         if (z.health <= 0) {
@@ -716,8 +828,9 @@ function search() {
         item = rollLoot(type, bonus);
     }
     if (item) {
-        inventory[item] = (inventory[item] || 0) + 1;
-        log(`Found ${item} in the ${type}.`);
+        if (addItemToInventory(item)) {
+            log(`Found ${item} in the ${type}.`);
+        }
     } else {
         log('Found nothing.');
     }
@@ -740,66 +853,71 @@ function updateInventory(newItem = null) {
     const list = document.getElementById('inventory-list');
     const select = document.getElementById('inventorySelect');
     const barricadeSelect = document.getElementById('barricadeSelect');
+    const craftSelect = document.getElementById('craftSelect');
     list.innerHTML = '';
     select.innerHTML = '';
     barricadeSelect.innerHTML = '';
-    const rarityMap = {
-        'Bandage': 'common',
-        'Energy Drink': 'common',
-        'First Aid Kit': 'rare',
-        'Wood Planks': 'common',
-        'Metal Panels': 'rare',
-        'Heavy Furniture': 'epic'
-    };
+    if (craftSelect) craftSelect.innerHTML = '';
 
-    Object.keys(inventory).forEach(name => {
-        const count = inventory[name];
-        if (count > 0) {
-            const div = document.createElement('div');
-            div.textContent = `${name} x${count}`;
-            const rarity = rarityMap[name];
-            if (rarity === 'rare') div.classList.add('rare');
-            if (rarity === 'epic') div.classList.add('epic');
-            if (name === newItem) div.classList.add('flash');
-            list.appendChild(div);
-            if (['First Aid Kit', 'Bandage', 'Energy Drink'].includes(name)) {
-                const opt = document.createElement('option');
-                opt.value = name;
-                opt.textContent = name;
-                select.appendChild(opt);
-            }
-            if (['Wood Planks', 'Metal Panels', 'Heavy Furniture'].includes(name)) {
-                const opt = document.createElement('option');
-                opt.value = name;
-                opt.textContent = name;
-                barricadeSelect.appendChild(opt);
-            }
+    inventory.forEach((item, idx) => {
+        const div = document.createElement('div');
+        const dur = item.maxDurability ? ` (${item.durability}/${item.maxDurability})` : '';
+        div.textContent = `${item.name} x${item.quantity}${dur}`;
+        if (item.rarity === 'rare') div.classList.add('rare');
+        if (item.rarity === 'epic') div.classList.add('epic');
+        if (item.name === newItem) div.classList.add('flash');
+        div.title = item.description || '';
+        list.appendChild(div);
+        if (item.type === 'consumable') {
+            const opt = document.createElement('option');
+            opt.value = idx;
+            opt.textContent = item.name;
+            select.appendChild(opt);
+        }
+        if (item.type === 'material') {
+            const opt = document.createElement('option');
+            opt.value = idx;
+            opt.textContent = item.name;
+            barricadeSelect.appendChild(opt);
         }
     });
+
+    if (craftSelect) {
+        craftingRecipes.forEach((rec, i) => {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = rec.result;
+            if (!canCraft(rec)) opt.disabled = true;
+            craftSelect.appendChild(opt);
+        });
+    }
+    updateWeight();
 }
 
 function useItem() {
     const select = document.getElementById('inventorySelect');
-    const item = select.value;
-    if (!item || !inventory[item]) return;
-    if (item === 'First Aid Kit') {
+    const idx = parseInt(select.value);
+    const item = inventory[idx];
+    if (!item) return;
+    if (item.name === 'First Aid Kit') {
         const before = player.health;
         player.health = Math.min(maxHealth, player.health + 5);
         log(`Used First Aid Kit and healed ${player.health - before} HP.`);
-    } else if (item === 'Energy Drink') {
+        removeItemFromInventory(item.name, 1);
+    } else if (item.name === 'Energy Drink') {
         const before = player.ap;
         player.ap = Math.min(maxAP, player.ap + 5);
         log(`Used Energy Drink and restored ${player.ap - before} AP.`);
-    } else if (item === 'Bandage') {
+        removeItemFromInventory(item.name, 1);
+    } else if (item.name === 'Bandage') {
         const before = player.health;
         player.health = Math.min(maxHealth, player.health + 2);
         log(`Used Bandage and healed ${player.health - before} HP.`);
-    } else if (item === 'Wood Planks' || item === 'Metal Panels' || item === 'Heavy Furniture') {
+        removeItemFromInventory(item.name, 1);
+    } else if (item.type === 'material') {
         log('Select Barricade and choose a material to build or reinforce.');
         return;
     }
-    inventory[item] -= 1;
-    if (inventory[item] <= 0) delete inventory[item];
     updateStats();
     updateInventory();
     draw();
@@ -809,8 +927,9 @@ function useItem() {
 function barricade() {
     if (electricalInterference()) return;
     const select = document.getElementById('barricadeSelect');
-    const item = select.value;
-    if (!item || !inventory[item]) {
+    const idx = parseInt(select.value);
+    const item = inventory[idx];
+    if (!item) {
         log('No barricade material selected.');
         return;
     }
@@ -820,19 +939,18 @@ function barricade() {
     }
     const tile = areaGrid[player.y][player.x];
     let add = 0;
-    if (item === 'Wood Planks') add = 2;
-    else if (item === 'Metal Panels') add = 3;
-    else if (item === 'Heavy Furniture') add = 5;
+    if (item.name === 'Wood Planks') add = 2;
+    else if (item.name === 'Metal Panels') add = 3;
+    else if (item.name === 'Heavy Furniture') add = 5;
     if (!tile.barricaded) {
         tile.barricaded = true;
         tile.barricadeHealth = 0;
     }
     tile.barricadeHealth = Math.min(10, tile.barricadeHealth + add);
-    tile.barricadeMaterial = item;
-    inventory[item] -= 1;
-    if (inventory[item] <= 0) delete inventory[item];
+    tile.barricadeMaterial = item.name;
+    removeItemFromInventory(item.name, 1);
     player.ap -= 1;
-    log(`You reinforced the barricade with ${item}. Strength: ${tile.barricadeHealth}/10.`);
+    log(`You reinforced the barricade with ${item.name}. Strength: ${tile.barricadeHealth}/10.`);
     moveZombies({ x: player.x, y: player.y });
     draw();
     updateTileInfo();
@@ -1012,6 +1130,11 @@ window.addEventListener('load', () => {
     document.getElementById('search').addEventListener('click', search);
     document.getElementById('use').addEventListener('click', useItem);
     document.getElementById('barricade').addEventListener('click', barricade);
+    const craftBtn = document.getElementById('craft');
+    if (craftBtn) craftBtn.addEventListener('click', () => {
+        const idx = document.getElementById('craftSelect').value;
+        craftItem(parseInt(idx));
+    });
     document.getElementById('highlightToggle').addEventListener('change', e => {
         document.body.classList.toggle('highlight-unexplored', e.target.checked);
     });

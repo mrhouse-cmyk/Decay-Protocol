@@ -116,6 +116,15 @@ body {
     margin-bottom: 2px;
 }
 
+#weight {
+    margin-bottom: 4px;
+    font-size: 0.9em;
+}
+
+.crafting {
+    margin-top: 5px;
+}
+
 #controls button {
     margin: 3px;
     background: #333;
