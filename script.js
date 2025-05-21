@@ -1,6 +1,8 @@
 const gridSize = 10;
 const maxHealth = 10;
 const maxAP = 20;
+const maxHunger = 100;
+const maxFatigue = 100;
 const visionRange = 1;
 const areaTypes = ["hospital", "residential", "street", "warehouse", "office"];
 const areaDescriptions = {
@@ -42,7 +44,18 @@ function assignTileAttributes(tile) {
 }
 let areaGrid = [];
 let turn = 0;
-let player = { x: 0, y: 0, health: maxHealth, ap: maxAP, perks: [], visionRange: 2, maxWeight: 20 };
+let player = {
+    x: 0,
+    y: 0,
+    health: maxHealth,
+    ap: maxAP,
+    hunger: 0,
+    fatigue: 0,
+    conditions: { bleeding: false, infection: false },
+    perks: [],
+    visionRange: 2,
+    maxWeight: 20
+};
 let zombies = [];
 let inventory = [];
 
@@ -61,13 +74,22 @@ const barricadeDescriptors = {
 };
 
 const itemDefinitions = {
-    'First Aid Kit': { weight: 1, type: 'consumable', rarity: 'rare', description: 'Heals a large amount of health.', stackable: true },
+    'First Aid Kit': { weight: 1, type: 'consumable', rarity: 'rare', description: 'Heals a large amount of health and cures infection.', stackable: true },
     'Bandage': { weight: 0.2, type: 'consumable', rarity: 'common', description: 'Stops bleeding and heals slightly.', stackable: true },
     'Energy Drink': { weight: 0.2, type: 'consumable', rarity: 'common', description: 'Restores a small amount of AP.', stackable: true },
+    'Rations': { weight: 0.5, type: 'consumable', rarity: 'common', description: 'Simple food to stave off hunger.', stackable: true },
     'Wood Planks': { weight: 1, type: 'material', rarity: 'common', description: 'Sturdy planks used for barricading.', stackable: true },
     'Metal Panels': { weight: 2, type: 'material', rarity: 'rare', description: 'Scrap metal perfect for barricades.', stackable: true },
     'Heavy Furniture': { weight: 5, type: 'material', rarity: 'epic', description: 'Large pieces of furniture for strong barricades.', stackable: true },
-    'Crowbar': { weight: 2, type: 'tool', rarity: 'uncommon', description: 'A solid iron crowbar, useful for breaking into locked doors or barricading.', maxDurability: 10 },
+    'Crowbar': { weight: 2, type: 'weapon', rarity: 'uncommon', description: 'A solid iron crowbar, useful for breaking into locked doors or barricading.', maxDurability: 10, damage: 2, ap: 2, range: 0, accuracy: 0.9 },
+    'Bat': { weight: 2, type: 'weapon', rarity: 'common', description: 'A worn baseball bat.', maxDurability: 8, damage: 2, ap: 1, range: 0, accuracy: 0.9 },
+    'Machete': { weight: 1.5, type: 'weapon', rarity: 'uncommon', description: 'A sharp machete.', maxDurability: 6, damage: 3, ap: 2, range: 0, accuracy: 0.9 },
+    'Pistol': { weight: 1.5, type: 'weapon', rarity: 'rare', description: 'A basic handgun.', maxDurability: 10, damage: 3, ap: 2, range: 3, accuracy: 0.75, ammoType: '9mm Ammo', ammoUsed: 1 },
+    'Shotgun': { weight: 3, type: 'weapon', rarity: 'rare', description: 'Powerful close range firearm.', maxDurability: 8, damage: 4, ap: 3, range: 2, accuracy: 0.7, ammoType: 'Shells', ammoUsed: 1, aoe: true },
+    'Rifle': { weight: 4, type: 'weapon', rarity: 'epic', description: 'Long range rifle.', maxDurability: 12, damage: 5, ap: 4, range: 5, accuracy: 0.8, ammoType: 'Rifle Ammo', ammoUsed: 1 },
+    '9mm Ammo': { weight: 0.1, type: 'ammo', rarity: 'common', description: '9mm rounds.', stackable: true },
+    'Shells': { weight: 0.2, type: 'ammo', rarity: 'uncommon', description: 'Shotgun shells.', stackable: true },
+    'Rifle Ammo': { weight: 0.2, type: 'ammo', rarity: 'rare', description: 'Rifle ammunition.', stackable: true },
     'Makeshift Shield': { weight: 3, type: 'tool', rarity: 'uncommon', description: 'A crude shield offering temporary protection.', maxDurability: 5 }
 };
 
@@ -83,39 +105,54 @@ const lootTables = {
         { name: 'First Aid Kit', chance: 0.2 },
         { name: 'Bandage', chance: 0.5 },
         { name: 'Energy Drink', chance: 0.1 },
+        { name: 'Rations', chance: 0.1 },
         { name: 'Wood Planks', chance: 0.1 },
         { name: 'Metal Panels', chance: 0.05 },
         { name: 'Crowbar', chance: 0.05 },
+        { name: 'Pistol', chance: 0.05 },
+        { name: '9mm Ammo', chance: 0.2 },
         { name: 'Heavy Furniture', chance: 0.02 }
     ],
     residential: [
         { name: 'Bandage', chance: 0.3 },
         { name: 'Energy Drink', chance: 0.2 },
+        { name: 'Rations', chance: 0.2 },
         { name: 'Wood Planks', chance: 0.2 },
         { name: 'Metal Panels', chance: 0.1 },
+        { name: 'Bat', chance: 0.05 },
         { name: 'Crowbar', chance: 0.05 },
+        { name: '9mm Ammo', chance: 0.1 },
         { name: 'Heavy Furniture', chance: 0.05 }
     ],
     street: [
         { name: 'Bandage', chance: 0.1 },
         { name: 'Energy Drink', chance: 0.1 },
+        { name: 'Rations', chance: 0.1 },
         { name: 'Wood Planks', chance: 0.15 },
         { name: 'Metal Panels', chance: 0.05 },
-        { name: 'Crowbar', chance: 0.05 }
+        { name: 'Crowbar', chance: 0.05 },
+        { name: '9mm Ammo', chance: 0.05 }
     ],
     warehouse: [
         { name: 'Energy Drink', chance: 0.3 },
         { name: 'Bandage', chance: 0.2 },
+        { name: 'Rations', chance: 0.2 },
         { name: 'Wood Planks', chance: 0.3 },
         { name: 'Metal Panels', chance: 0.2 },
+        { name: 'Machete', chance: 0.1 },
+        { name: 'Shotgun', chance: 0.05 },
+        { name: 'Shells', chance: 0.15 },
         { name: 'Crowbar', chance: 0.15 },
         { name: 'Heavy Furniture', chance: 0.1 }
     ],
     office: [
         { name: 'Bandage', chance: 0.2 },
         { name: 'Energy Drink', chance: 0.2 },
+        { name: 'Rations', chance: 0.1 },
         { name: 'Wood Planks', chance: 0.15 },
         { name: 'Metal Panels', chance: 0.1 },
+        { name: 'Rifle', chance: 0.02 },
+        { name: 'Rifle Ammo', chance: 0.1 },
         { name: 'Crowbar', chance: 0.05 },
         { name: 'Heavy Furniture', chance: 0.05 }
     ]
@@ -321,6 +358,16 @@ function removeItemFromInventory(name, qty = 1) {
     return true;
 }
 
+function consumeAmmo(name, qty = 1) {
+    const item = findItem(name);
+    if (!item || item.quantity < qty) {
+        log('Out of ammo!', 'warning');
+        return false;
+    }
+    removeItemFromInventory(name, qty);
+    return true;
+}
+
 function canCraft(recipe) {
     return Object.entries(recipe.ingredients).every(([name, qty]) => {
         const item = findItem(name);
@@ -347,6 +394,8 @@ function zombieAttack() {
     if (zombies.some(z => z.x === player.x && z.y === player.y)) {
         player.health -= 1;
         log('A zombie attacked you for 1 damage.');
+        if (Math.random() < 0.3) player.conditions.bleeding = true;
+        if (Math.random() < 0.2) player.conditions.infection = true;
         if (worldState.activeEvents.includes('electricalStorm') && Math.random() < 0.5) {
             player.health -= 1;
             log('The storm drives the zombie into a frenzy! Another hit!', 'danger');
@@ -365,6 +414,9 @@ function init() {
     worldState.timeOfDay = 'day';
     worldState.activeEvents = [];
     worldState.eventDuration = {};
+    player.hunger = 0;
+    player.fatigue = 0;
+    player.conditions = { bleeding: false, infection: false };
     player.visionRange = 2;
     createGrid();
     placePlayer();
@@ -588,11 +640,18 @@ function draw() {
     playerCell.classList.add('player', 'tile-visible');
 
     const attackBtn = document.getElementById('attack');
-    if (zombies.some(z => z.x === player.x && z.y === player.y)) {
-        attackBtn.style.display = 'inline-block';
-    } else {
-        attackBtn.style.display = 'none';
-    }
+    const weaponSelect = document.getElementById('weaponSelect');
+    let wIdx = weaponSelect ? parseInt(weaponSelect.value) : -1;
+    const wItem = inventory[wIdx];
+    let range = 0;
+    if (wItem && itemDefinitions[wItem.name]) range = itemDefinitions[wItem.name].range || 0;
+    const inRange = zombies.some(z => {
+        const dist = Math.abs(z.x - player.x) + Math.abs(z.y - player.y);
+        if (range === 0) return dist === 0;
+        return dist <= range && areaGrid[z.y][z.x].visible;
+    });
+    if (inRange) attackBtn.style.display = 'inline-block';
+    else attackBtn.style.display = 'none';
 }
 
 function getCell(x, y) {
@@ -694,6 +753,8 @@ function move(dx, dy) {
             return;
         }
         player.ap -= cost;
+        player.fatigue = Math.min(maxFatigue, player.fatigue + 2);
+        player.hunger = Math.min(maxHunger, player.hunger + 1);
         if (tile.attributes.includes('locked') && !tile.unlocked) {
             tile.unlocked = true;
             log('You force your way into the locked area.');
@@ -709,6 +770,7 @@ function move(dx, dy) {
             tile.trapTriggered = true;
             if (Math.random() < 0.5) {
                 player.health -= 1;
+                if (Math.random() < 0.5) player.conditions.bleeding = true;
                 log('You triggered a trap and took 1 damage.', 'danger');
                 if (player.health <= 0) {
                     player.health = 0;
@@ -733,36 +795,71 @@ function move(dx, dy) {
 
 function attack() {
     if (electricalInterference()) return;
-    if (player.ap < 2) {
+    const weaponSelect = document.getElementById('weaponSelect');
+    const wIdx = weaponSelect ? parseInt(weaponSelect.value) : -1;
+    const item = inventory[wIdx];
+    let def = { damage: 1, ap: 2, range: 0, accuracy: 0.8 };
+    if (item && itemDefinitions[item.name] && itemDefinitions[item.name].type === 'weapon') {
+        def = itemDefinitions[item.name];
+    }
+    if (player.ap < def.ap) {
         log('Not enough AP to attack.');
         return;
     }
-    const index = zombies.findIndex(z => z.x === player.x && z.y === player.y);
-    if (index !== -1) {
-        const z = zombies[index];
-        let damage = 1;
-        const weapon = findItem('Crowbar');
-        if (weapon) {
-            damage = 2;
-            if (weapon.durability != null) {
-                weapon.durability -= 1;
-                if (weapon.durability <= 0) {
-                    removeItemFromInventory('Crowbar', 1);
-                    log('Your Crowbar broke.');
+
+    let targets = [];
+    if (def.range === 0) {
+        targets = zombies.filter(z => z.x === player.x && z.y === player.y);
+    } else {
+        targets = zombies.filter(z => {
+            const dist = Math.abs(z.x - player.x) + Math.abs(z.y - player.y);
+            return dist <= def.range && areaGrid[z.y][z.x].visible;
+        });
+    }
+
+    if (!targets.length) {
+        log('No zombie in range.');
+        return;
+    }
+    const target = targets[0];
+    if (Math.random() < def.accuracy) {
+        target.health -= def.damage;
+        log('You hit the zombie.');
+        if (def.aoe) {
+            zombies.forEach(z => {
+                if (z !== target && Math.abs(z.x - target.x) + Math.abs(z.y - target.y) <= 1) {
+                    z.health -= def.damage;
                 }
-            }
+            });
         }
-        z.health -= damage;
-        player.ap -= 2;
-        log('You strike the zombie.');
-        if (z.health <= 0) {
-            if (z.damageOnDeath) {
-                player.health -= 1;
-                log('The zombie explodes, injuring you!', 'danger');
-            }
-            zombies.splice(index, 1);
-            log('Zombie defeated!');
+    } else {
+        log('Your attack misses.');
+    }
+
+    if (def.ammoType) {
+        if (!consumeAmmo(def.ammoType, def.ammoUsed || 1)) {
+            return;
         }
+    }
+    if (item && item.durability != null) {
+        item.durability -= 1;
+        if (item.durability <= 0) {
+            removeItemFromInventory(item.name, 1);
+            log(`Your ${item.name} broke.`);
+        }
+    }
+
+    player.ap -= def.ap;
+    player.fatigue = Math.min(maxFatigue, player.fatigue + 2);
+    player.hunger = Math.min(maxHunger, player.hunger + 1);
+
+    if (target.health <= 0) {
+        if (target.damageOnDeath) {
+            player.health -= 1;
+            log('The zombie explodes, injuring you!', 'danger');
+        }
+        zombies.splice(zombies.indexOf(target), 1);
+        log('Zombie defeated!');
     }
     moveZombies({ x: player.x, y: player.y });
     draw();
@@ -779,6 +876,7 @@ function rest() {
     } else {
         const before = player.ap;
         player.ap = Math.min(maxAP, player.ap + 5);
+        player.fatigue = Math.max(0, player.fatigue - 10);
         const gained = player.ap - before;
         if (gained > 0) {
             log(`Rested and regained ${gained} AP.`);
@@ -805,6 +903,8 @@ function search() {
         return;
     }
     player.ap -= 2;
+    player.fatigue = Math.min(maxFatigue, player.fatigue + 2);
+    player.hunger = Math.min(maxHunger, player.hunger + 1);
     const type = tile.type;
     let bonus = player.perks.includes('Scavenger') ? 0.1 : 0;
     let item;
@@ -853,10 +953,12 @@ function updateInventory(newItem = null) {
     const list = document.getElementById('inventory-list');
     const select = document.getElementById('inventorySelect');
     const barricadeSelect = document.getElementById('barricadeSelect');
+    const weaponSelect = document.getElementById('weaponSelect');
     const craftSelect = document.getElementById('craftSelect');
     list.innerHTML = '';
     select.innerHTML = '';
     barricadeSelect.innerHTML = '';
+    if (weaponSelect) weaponSelect.innerHTML = '';
     if (craftSelect) craftSelect.innerHTML = '';
 
     inventory.forEach((item, idx) => {
@@ -880,7 +982,17 @@ function updateInventory(newItem = null) {
             opt.textContent = item.name;
             barricadeSelect.appendChild(opt);
         }
+        if (item.type === 'weapon') {
+            const opt = document.createElement('option');
+            opt.value = idx;
+            const durText = item.maxDurability ? ` (${item.durability}/${item.maxDurability})` : '';
+            opt.textContent = item.name + durText;
+            weaponSelect.appendChild(opt);
+        }
     });
+    if (weaponSelect && weaponSelect.options.length > 0) {
+        weaponSelect.value = weaponSelect.options[0].value;
+    }
 
     if (craftSelect) {
         craftingRecipes.forEach((rec, i) => {
@@ -902,6 +1014,7 @@ function useItem() {
     if (item.name === 'First Aid Kit') {
         const before = player.health;
         player.health = Math.min(maxHealth, player.health + 5);
+        player.conditions.infection = false;
         log(`Used First Aid Kit and healed ${player.health - before} HP.`);
         removeItemFromInventory(item.name, 1);
     } else if (item.name === 'Energy Drink') {
@@ -912,7 +1025,13 @@ function useItem() {
     } else if (item.name === 'Bandage') {
         const before = player.health;
         player.health = Math.min(maxHealth, player.health + 2);
+        player.conditions.bleeding = false;
         log(`Used Bandage and healed ${player.health - before} HP.`);
+        removeItemFromInventory(item.name, 1);
+    } else if (item.name === 'Rations') {
+        const before = player.hunger;
+        player.hunger = Math.max(0, player.hunger - 30);
+        log(`Ate rations and reduced hunger by ${before - player.hunger}.`);
         removeItemFromInventory(item.name, 1);
     } else if (item.type === 'material') {
         log('Select Barricade and choose a material to build or reinforce.');
@@ -950,6 +1069,8 @@ function barricade() {
     tile.barricadeMaterial = item.name;
     removeItemFromInventory(item.name, 1);
     player.ap -= 1;
+    player.fatigue = Math.min(maxFatigue, player.fatigue + 2);
+    player.hunger = Math.min(maxHunger, player.hunger + 1);
     log(`You reinforced the barricade with ${item.name}. Strength: ${tile.barricadeHealth}/10.`);
     moveZombies({ x: player.x, y: player.y });
     draw();
@@ -984,6 +1105,24 @@ function nextTurn() {
     degradeBarricades();
     processTileEvents();
     processActiveEvents();
+    player.hunger = Math.min(maxHunger, player.hunger + 1);
+    player.fatigue = Math.min(maxFatigue, player.fatigue + 1);
+    if (player.hunger >= maxHunger) {
+        player.health -= 1;
+        log('Starvation hurts you.', 'danger');
+    }
+    if (player.fatigue >= maxFatigue) {
+        player.health -= 1;
+        log('Exhaustion takes its toll.', 'danger');
+    }
+    if (player.conditions.bleeding) {
+        player.health -= 1;
+        log('You bleed.', 'danger');
+    }
+    if (player.conditions.infection && worldState.turn % 3 === 0) {
+        player.health -= 1;
+        log('The infection worsens.', 'danger');
+    }
     if (areaGrid[player.y][player.x].attributes.includes('radiation')) {
         player.health -= 1;
         log('The radiation saps your strength.', 'danger');
@@ -1087,12 +1226,25 @@ function moveZombies(prevPos) {
 function updateStats() {
     const healthEl = document.getElementById('health');
     const apEl = document.getElementById('ap');
+    const hungerEl = document.getElementById('hunger');
+    const fatigueEl = document.getElementById('fatigue');
     const healthFill = document.querySelector('#health-bar .fill');
     const apFill = document.querySelector('#ap-bar .fill');
+    const hungerFill = document.querySelector('#hunger-bar .fill');
+    const fatigueFill = document.querySelector('#fatigue-bar .fill');
     healthEl.textContent = player.health;
     apEl.textContent = player.ap;
+    hungerEl.textContent = player.hunger;
+    fatigueEl.textContent = player.fatigue;
     healthFill.style.transform = `scaleX(${player.health / maxHealth})`;
     apFill.style.transform = `scaleX(${player.ap / maxAP})`;
+    hungerFill.style.transform = `scaleX(${(maxHunger - player.hunger) / maxHunger})`;
+    fatigueFill.style.transform = `scaleX(${(maxFatigue - player.fatigue) / maxFatigue})`;
+    const statusEl = document.getElementById('status');
+    const arr = [];
+    if (player.conditions.bleeding) arr.push('Bleeding');
+    if (player.conditions.infection) arr.push('Infected');
+    statusEl.textContent = arr.join(', ');
 }
 
 function updateTurn() {
