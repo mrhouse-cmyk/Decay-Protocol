@@ -1,8 +1,32 @@
 body {
     font-family: Arial, sans-serif;
-    background: #111;
+    background: #181818;
     color: #eee;
-    text-align: center;
+    margin: 0;
+}
+
+#top-bar {
+    background: #222;
+    color: #aaffaa;
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+#game {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 10px;
+    gap: 20px;
+}
+
+#grid-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 #grid {
@@ -10,22 +34,38 @@ body {
     grid-template-columns: repeat(10, 40px);
     grid-template-rows: repeat(10, 40px);
     gap: 2px;
-    margin: 0 auto 20px auto;
     width: max-content;
+}
+
+#tile-desc {
+    margin-top: 5px;
+    min-height: 40px;
+    color: #ccc;
+    max-width: 400px;
+    text-align: center;
 }
 
 .cell {
     width: 40px;
     height: 40px;
     border: 1px solid #555;
+    background: #333;
+    position: relative;
+    transition: background 0.3s;
+}
+
+.cell:hover {
+    filter: brightness(1.2);
+    cursor: pointer;
 }
 
 .player {
-    background: green !important;
+    background: #0a0 !important;
+    box-shadow: 0 0 5px 2px #0f0;
 }
 
 .zombie {
-    background: red !important;
+    background: #700 !important;
 }
 
 .area-hospital {
@@ -50,31 +90,46 @@ body {
 
 #inventory {
     margin-top: 10px;
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid #333;
+    padding: 5px;
 }
 
-#inventory-list {
-    margin-bottom: 5px;
+#inventory-list div {
+    margin-bottom: 2px;
 }
 
 #controls button {
     margin: 3px;
+    background: #333;
+    color: #eee;
+    border: 1px solid #555;
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#controls button:hover {
+    background: #555;
 }
 
 #log {
     margin-top: 10px;
-    max-height: 150px;
+    max-height: 200px;
     overflow-y: auto;
-    background: #222;
+    background: #1a1a1a;
     padding: 5px;
     text-align: left;
+    border: 1px solid #333;
 }
 
 .barricaded {
-    border: 2px solid yellow !important;
+    border: 2px solid #aaa !important;
 }
 
 .barricade-strong {
-    box-shadow: inset 0 0 0 2px green;
+    box-shadow: inset 0 0 0 2px #0f0;
 }
 
 .barricade-weak {
@@ -94,4 +149,63 @@ body {
 
 .searched {
     opacity: 0.6;
+}
+
+#sidebar {
+    width: 250px;
+    max-width: 40vw;
+}
+
+@media (max-width: 768px) {
+    #game {
+        flex-direction: column;
+        align-items: center;
+    }
+    #sidebar {
+        width: 100%;
+        max-width: none;
+    }
+}
+
+.stat {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.stat .bar {
+    flex: 1;
+    background: #333;
+    height: 12px;
+    margin: 0 5px;
+    position: relative;
+    overflow: hidden;
+}
+
+.stat .fill {
+    background: linear-gradient(90deg, #0f0, #f00);
+    height: 100%;
+    width: 100%;
+    transform-origin: left;
+    transition: transform 0.3s;
+}
+
+.stat .icon {
+    width: 20px;
+}
+
+.log .info { color: #aaa; }
+.log .warning { color: orange; }
+.log .danger { color: #f55; }
+
+.rare { color: #38f; }
+.epic { color: #b0f; }
+
+.flash {
+    animation: flashBg 0.5s;
+}
+
+@keyframes flashBg {
+    from { background: rgba(255,255,255,0.3); }
+    to { background: transparent; }
 }

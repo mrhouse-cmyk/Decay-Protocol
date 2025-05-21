@@ -81,6 +81,8 @@ function init() {
     placePlayer();
     placeZombies(5);
     updateStats();
+    updateTurn();
+    updateTileInfo();
     updateInventory();
     draw();
     log('Game started.');
@@ -98,6 +100,16 @@ function createGrid() {
             cell.dataset.x = x;
             cell.dataset.y = y;
             cell.dataset.type = type;
+            cell.addEventListener('mouseenter', () => {
+                const desc = getDescriptionForTile(x, y);
+                const tile = areaGrid[y][x];
+                let extra = '';
+                if (tile.barricaded) {
+                    extra = `Barricade strength: ${tile.barricadeHealth}/10.`;
+                }
+                document.getElementById('tile-desc').textContent = `${desc} ${extra}`.trim();
+            });
+            cell.addEventListener('mouseleave', updateTileInfo);
             areaGrid[y][x] = {
                 type,
                 description: areaDescriptions[type],
@@ -278,6 +290,7 @@ function move(dx, dy) {
         player.ap -= 1;
         log(`Moved to (${nx}, ${ny}).`);
         log(getDescriptionForTile(nx, ny));
+        updateTileInfo();
         moveZombies(prev);
         draw();
         updateStats();
@@ -350,23 +363,36 @@ function search() {
     moveZombies({ x: player.x, y: player.y });
     draw();
     updateStats();
-    updateInventory();
+    updateInventory(item);
     zombieAttack();
     nextTurn();
 }
 
-function updateInventory() {
+function updateInventory(newItem = null) {
     const list = document.getElementById('inventory-list');
     const select = document.getElementById('inventorySelect');
     const barricadeSelect = document.getElementById('barricadeSelect');
     list.innerHTML = '';
     select.innerHTML = '';
     barricadeSelect.innerHTML = '';
+    const rarityMap = {
+        'Bandage': 'common',
+        'Energy Drink': 'common',
+        'First Aid Kit': 'rare',
+        'Wood Planks': 'common',
+        'Metal Panels': 'rare',
+        'Heavy Furniture': 'epic'
+    };
+
     Object.keys(inventory).forEach(name => {
         const count = inventory[name];
         if (count > 0) {
             const div = document.createElement('div');
             div.textContent = `${name} x${count}`;
+            const rarity = rarityMap[name];
+            if (rarity === 'rare') div.classList.add('rare');
+            if (rarity === 'epic') div.classList.add('epic');
+            if (name === newItem) div.classList.add('flash');
             list.appendChild(div);
             if (['First Aid Kit', 'Bandage', 'Energy Drink'].includes(name)) {
                 const opt = document.createElement('option');
@@ -409,6 +435,7 @@ function useItem() {
     updateStats();
     updateInventory();
     draw();
+    updateTileInfo();
 }
 
 function barricade() {
@@ -439,6 +466,7 @@ function barricade() {
     log(`You reinforced the barricade with ${item}. Strength: ${tile.barricadeHealth}/10.`);
     moveZombies({ x: player.x, y: player.y });
     draw();
+    updateTileInfo();
     updateStats();
     updateInventory();
     zombieAttack();
@@ -468,8 +496,11 @@ function degradeBarricades() {
 function nextTurn() {
     degradeBarricades();
     draw();
-    log(getDescriptionForTile(player.x, player.y));
+    const desc = getDescriptionForTile(player.x, player.y);
+    log(desc);
+    updateTileInfo();
     turn += 1;
+    updateTurn();
 }
 
 function moveZombies(prevPos) {
@@ -520,14 +551,36 @@ function moveZombies(prevPos) {
 }
 
 function updateStats() {
-    document.getElementById('health').textContent = player.health;
-    document.getElementById('ap').textContent = player.ap;
+    const healthEl = document.getElementById('health');
+    const apEl = document.getElementById('ap');
+    const healthFill = document.querySelector('#health-bar .fill');
+    const apFill = document.querySelector('#ap-bar .fill');
+    healthEl.textContent = player.health;
+    apEl.textContent = player.ap;
+    healthFill.style.transform = `scaleX(${player.health / maxHealth})`;
+    apFill.style.transform = `scaleX(${player.ap / maxAP})`;
 }
 
-function log(message) {
+function updateTurn() {
+    document.getElementById('turn').textContent = turn;
+}
+
+function updateTileInfo() {
+    const desc = getDescriptionForTile(player.x, player.y);
+    const tile = areaGrid[player.y][player.x];
+    let extra = '';
+    if (tile.barricaded) {
+        extra = `Barricade strength: ${tile.barricadeHealth}/10.`;
+    }
+    document.getElementById('tile-desc').textContent = `${desc} ${extra}`.trim();
+}
+
+function log(message, type = 'info') {
     const logEl = document.getElementById('log');
     const entry = document.createElement('div');
-    entry.textContent = message;
+    const time = new Date().toLocaleTimeString();
+    entry.textContent = `[${time}] ${message}`;
+    entry.classList.add(type);
     logEl.prepend(entry);
 }
 
