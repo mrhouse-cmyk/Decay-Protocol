@@ -1,6 +1,7 @@
 const gridSize = 10;
 const maxHealth = 10;
 const maxAP = 20;
+const visionRange = 1;
 const areaTypes = ["hospital", "residential", "street", "warehouse", "office"];
 const areaDescriptions = {
     hospital: 'A run-down hospital room littered with medical wrappers.',
@@ -11,7 +12,7 @@ const areaDescriptions = {
 };
 let areaGrid = [];
 let turn = 0;
-let player = { x: 0, y: 0, health: maxHealth, ap: maxAP, perks: [] };
+let player = { x: 0, y: 0, health: maxHealth, ap: maxAP, perks: [], visionRange };
 let zombies = [];
 let inventory = {};
 
@@ -84,6 +85,7 @@ function init() {
     updateTurn();
     updateTileInfo();
     updateInventory();
+    updateVisibility();
     draw();
     log('Game started.');
     log(getDescriptionForTile(player.x, player.y));
@@ -116,7 +118,9 @@ function createGrid() {
                 barricaded: false,
                 barricadeHealth: null,
                 barricadeMaterial: null,
-                searchedAt: -Infinity
+                searchedAt: -Infinity,
+                visible: false,
+                explored: false
             };
             grid.appendChild(cell);
         }
@@ -127,6 +131,28 @@ function placePlayer() {
     player.x = Math.floor(gridSize / 2);
     player.y = Math.floor(gridSize / 2);
     draw();
+}
+
+function updateVisibility() {
+    for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+            areaGrid[y][x].visible = false;
+        }
+    }
+    const range = player.visionRange || visionRange;
+    for (let dy = -range; dy <= range; dy++) {
+        for (let dx = -range; dx <= range; dx++) {
+            const nx = player.x + dx;
+            const ny = player.y + dy;
+            if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+                if (Math.max(Math.abs(dx), Math.abs(dy)) <= range) {
+                    const tile = areaGrid[ny][nx];
+                    tile.visible = true;
+                    tile.explored = true;
+                }
+            }
+        }
+    }
 }
 
 function placeZombies(count) {
@@ -179,33 +205,56 @@ function spawnZombieAtEdge() {
 }
 
 function draw() {
+    updateVisibility();
     const cells = document.querySelectorAll('.cell');
     cells.forEach(cell => {
-        cell.classList.remove('player', 'zombie', 'barricaded', 'searched',
-            'barricade-strong', 'barricade-weak', 'barricade-critical');
+        cell.classList.remove(
+            'player',
+            'zombie',
+            'barricaded',
+            'searched',
+            'barricade-strong',
+            'barricade-weak',
+            'barricade-critical',
+            'tile-visible',
+            'tile-explored',
+            'tile-unexplored'
+        );
         const x = parseInt(cell.dataset.x);
         const y = parseInt(cell.dataset.y);
         const tile = areaGrid[y][x];
-        if (tile.barricaded) {
-            let tier = 'barricade-strong';
-            if (tile.barricadeHealth <= 3) {
-                tier = 'barricade-critical';
-            } else if (tile.barricadeHealth <= 6) {
-                tier = 'barricade-weak';
+
+        if (tile.visible) {
+            cell.classList.add('tile-visible');
+            if (tile.barricaded) {
+                let tier = 'barricade-strong';
+                if (tile.barricadeHealth <= 3) {
+                    tier = 'barricade-critical';
+                } else if (tile.barricadeHealth <= 6) {
+                    tier = 'barricade-weak';
+                }
+                cell.classList.add('barricaded', tier);
             }
-            cell.classList.add('barricaded', tier);
+            if (turn - tile.searchedAt < 3) {
+                cell.classList.add('searched');
+            }
+            cell.title = getDescriptionForTile(x, y);
+        } else if (tile.explored) {
+            cell.classList.add('tile-explored');
+            cell.title = '';
+        } else {
+            cell.classList.add('tile-unexplored');
+            cell.title = '';
         }
-        if (turn - tile.searchedAt < 3) {
-            cell.classList.add('searched');
-        }
-        cell.title = getDescriptionForTile(x, y);
     });
     zombies.forEach(z => {
-        const cell = getCell(z.x, z.y);
-        cell.classList.add('zombie');
+        if (areaGrid[z.y][z.x].visible) {
+            const cell = getCell(z.x, z.y);
+            cell.classList.add('zombie');
+        }
     });
     const playerCell = getCell(player.x, player.y);
-    playerCell.classList.add('player');
+    playerCell.classList.add('player', 'tile-visible');
 
     const attackBtn = document.getElementById('attack');
     if (zombies.some(z => z.x === player.x && z.y === player.y)) {
@@ -596,4 +645,7 @@ window.addEventListener('load', () => {
     document.getElementById('search').addEventListener('click', search);
     document.getElementById('use').addEventListener('click', useItem);
     document.getElementById('barricade').addEventListener('click', barricade);
+    document.getElementById('highlightToggle').addEventListener('change', e => {
+        document.body.classList.toggle('highlight-unexplored', e.target.checked);
+    });
 });
