@@ -103,6 +103,12 @@ body {
 .area-office {
     background: #346;
 }
+.area-ocean {
+    background: #0077be;
+}
+.companion {
+    background: #5f9ea0;
+}
 
 #inventory {
     margin-top: 10px;
