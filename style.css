@@ -73,6 +73,18 @@ body {
     border: 2px solid yellow !important;
 }
 
+.barricade-5 { border-color: #ffff00 !important; }
+.barricade-4 { border-color: #e6e600 !important; }
+.barricade-3 { border-color: #cccc00 !important; }
+.barricade-2 { border-color: #b3b300 !important; }
+.barricade-1 { border-color: #999900 !important; animation: pulse 1s infinite; }
+
+@keyframes pulse {
+    0% { filter: brightness(1); }
+    50% { filter: brightness(0.5); }
+    100% { filter: brightness(1); }
+}
+
 .searched {
     opacity: 0.6;
 }

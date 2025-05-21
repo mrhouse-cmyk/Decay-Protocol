@@ -2,6 +2,13 @@ const gridSize = 10;
 const maxHealth = 10;
 const maxAP = 20;
 const areaTypes = ["hospital", "residential", "street", "warehouse", "office"];
+const areaDescriptions = {
+    hospital: 'A run-down hospital room littered with medical wrappers.',
+    residential: 'A cramped residential apartment with scattered belongings.',
+    street: 'A cracked street filled with abandoned cars.',
+    warehouse: 'A dusty warehouse stacked with boxes.',
+    office: 'A ransacked office floor covered in papers.'
+};
 let areaGrid = [];
 let turn = 0;
 let player = { x: 0, y: 0, health: maxHealth, ap: maxAP, perks: [] };
@@ -59,6 +66,7 @@ function init() {
     updateInventory();
     draw();
     log('Game started.');
+    log(getDescriptionForTile(player.x, player.y));
 }
 
 function createGrid() {
@@ -72,7 +80,13 @@ function createGrid() {
             cell.dataset.x = x;
             cell.dataset.y = y;
             cell.dataset.type = type;
-            areaGrid[y][x] = { type, barricaded: false, searchedAt: -Infinity };
+            areaGrid[y][x] = {
+                type,
+                description: areaDescriptions[type],
+                barricaded: false,
+                barricadeHealth: null,
+                searchedAt: -Infinity
+            };
             grid.appendChild(cell);
         }
     }
@@ -136,16 +150,18 @@ function spawnZombieAtEdge() {
 function draw() {
     const cells = document.querySelectorAll('.cell');
     cells.forEach(cell => {
-        cell.classList.remove('player', 'zombie', 'barricaded', 'searched');
+        cell.classList.remove('player', 'zombie', 'barricaded', 'searched',
+            'barricade-1', 'barricade-2', 'barricade-3', 'barricade-4', 'barricade-5');
         const x = parseInt(cell.dataset.x);
         const y = parseInt(cell.dataset.y);
         const tile = areaGrid[y][x];
         if (tile.barricaded) {
-            cell.classList.add('barricaded');
+            cell.classList.add('barricaded', `barricade-${tile.barricadeHealth}`);
         }
         if (turn - tile.searchedAt < 3) {
             cell.classList.add('searched');
         }
+        cell.title = getDescriptionForTile(x, y);
     });
     zombies.forEach(z => {
         const cell = getCell(z.x, z.y);
@@ -166,6 +182,41 @@ function getCell(x, y) {
     return document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
 }
 
+function countAdjacentZombies(x, y) {
+    const dirs = [
+        { x: 1, y: 0 },
+        { x: -1, y: 0 },
+        { x: 0, y: 1 },
+        { x: 0, y: -1 }
+    ];
+    let count = 0;
+    dirs.forEach(d => {
+        const nx = x + d.x;
+        const ny = y + d.y;
+        if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+            if (zombies.some(z => z.x === nx && z.y === ny)) {
+                count += 1;
+            }
+        }
+    });
+    return count;
+}
+
+function getDescriptionForTile(x, y) {
+    const tile = areaGrid[y][x];
+    const base = tile.description || '';
+    const count = countAdjacentZombies(x, y);
+    let mod = '';
+    if (count === 0) {
+        mod = "It's eerily quiet.";
+    } else if (count <= 2) {
+        mod = 'You hear faint groaning nearby.';
+    } else {
+        mod = 'The area is swarming with the dead.';
+    }
+    return `${base} ${mod}`;
+}
+
 function move(dx, dy) {
     if (player.ap <= 0) {
         log('Not enough AP to move.');
@@ -179,6 +230,7 @@ function move(dx, dy) {
         player.y = ny;
         player.ap -= 1;
         log(`Moved to (${nx}, ${ny}).`);
+        log(getDescriptionForTile(nx, ny));
         moveZombies(prev);
         draw();
         updateStats();
@@ -302,6 +354,7 @@ function useItem() {
             return;
         }
         tile.barricaded = true;
+        tile.barricadeHealth = 5;
         player.ap -= 1;
         log('You barricaded this area.');
     }
@@ -312,7 +365,29 @@ function useItem() {
     draw();
 }
 
+function degradeBarricades() {
+    for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+            const tile = areaGrid[y][x];
+            if (tile.barricaded) {
+                const damage = countAdjacentZombies(x, y);
+                if (damage > 0) {
+                    tile.barricadeHealth -= damage;
+                    if (tile.barricadeHealth <= 0) {
+                        tile.barricaded = false;
+                        tile.barricadeHealth = null;
+                        log('The barricade has been broken down by the undead!');
+                    }
+                }
+            }
+        }
+    }
+}
+
 function nextTurn() {
+    degradeBarricades();
+    draw();
+    log(getDescriptionForTile(player.x, player.y));
     turn += 1;
 }
 
