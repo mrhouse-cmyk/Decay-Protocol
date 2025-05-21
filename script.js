@@ -90,10 +90,12 @@ function move(dx, dy) {
     const nx = player.x + dx;
     const ny = player.y + dy;
     if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+        const prev = { x: player.x, y: player.y };
         player.x = nx;
         player.y = ny;
         player.ap -= 1;
         log(`Moved to (${nx}, ${ny}).`);
+        moveZombies(prev);
         draw();
         updateStats();
         zombieAttack();
@@ -110,9 +112,10 @@ function attack() {
         zombies.splice(index, 1);
         player.ap -= 2;
         log('Zombie defeated!');
-        draw();
-        updateStats();
     }
+    moveZombies({ x: player.x, y: player.y });
+    draw();
+    updateStats();
     zombieAttack();
 }
 
@@ -125,8 +128,56 @@ function rest() {
     } else {
         log('AP is already full.');
     }
+    moveZombies({ x: player.x, y: player.y });
+    draw();
     updateStats();
     zombieAttack();
+}
+
+function moveZombies(prevPos) {
+    const newPositions = [];
+    zombies = zombies.map(z => {
+        let target = { x: z.x, y: z.y };
+        const dx = player.x - z.x;
+        const dy = player.y - z.y;
+
+        const tryMove = (nx, ny) => {
+            if (nx < 0 || nx >= gridSize || ny < 0 || ny >= gridSize) return false;
+            if (nx === player.x && ny === player.y) return false;
+            if (newPositions.some(p => p.x === nx && p.y === ny)) return false;
+            return true;
+        };
+
+        const horiz = { x: z.x + Math.sign(dx), y: z.y };
+        const vert = { x: z.x, y: z.y + Math.sign(dy) };
+
+        if (Math.abs(dx) >= Math.abs(dy)) {
+            if (dx !== 0 && tryMove(horiz.x, horiz.y)) {
+                target = horiz;
+            } else if (dy !== 0 && tryMove(vert.x, vert.y)) {
+                target = vert;
+            }
+        } else {
+            if (dy !== 0 && tryMove(vert.x, vert.y)) {
+                target = vert;
+            } else if (dx !== 0 && tryMove(horiz.x, horiz.y)) {
+                target = horiz;
+            }
+        }
+
+        if (target.x === prevPos.x && target.y === prevPos.y) {
+            log('A zombie shambles into where you just were.');
+        }
+
+        newPositions.push(target);
+        return target;
+    });
+
+    zombies.forEach(z => {
+        if (Math.abs(z.x - player.x) + Math.abs(z.y - player.y) === 1) {
+            log('A zombie is dangerously close!');
+        }
+    });
 }
 
 function updateStats() {
