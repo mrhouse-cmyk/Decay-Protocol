@@ -56,6 +56,7 @@ let player = {
     perks: [],
     xp: 0,
     level: 1,
+    class: null,
     xpToNext: 100,
     achievements: [],
     stats: { kills: 0, searches: 0, tilesExplored: 0 },
@@ -208,7 +209,17 @@ const perkUnlocks = {
 
 const perkDescriptions = {
     Scavenger: 'Increased chance to find loot.',
-    Quiet: 'Less noise when searching.'
+    Quiet: 'Less noise when searching.',
+    Sharpshooter: 'Increased accuracy with ranged weapons.',
+    'Field Medic': 'Medical items heal more.',
+    Tinkerer: 'Improved barricade strength.'
+};
+
+const classDefinitions = {
+    scavenger: { perk: 'Scavenger', item: 'Crowbar' },
+    soldier: { perk: 'Sharpshooter', item: 'Bat' },
+    medic: { perk: 'Field Medic', item: 'Bandage' },
+    engineer: { perk: 'Tinkerer', item: 'Wood Planks' }
 };
 
 const achievementDefinitions = {
@@ -465,7 +476,10 @@ function init() {
     player.xp = 0;
     player.level = 1;
     player.xpToNext = 100;
-    player.perks = [];
+    inventory = [];
+    const cDef = classDefinitions[player.class] || null;
+    player.perks = cDef ? [cDef.perk] : [];
+    if (cDef) addItemToInventory(cDef.item);
     player.achievements = [];
     player.stats = { kills: 0, searches: 0, tilesExplored: 0 };
     player.visionRange = 2;
@@ -884,6 +898,9 @@ function attack() {
     if (item && itemDefinitions[item.name] && itemDefinitions[item.name].type === 'weapon') {
         def = itemDefinitions[item.name];
     }
+    if (player.perks.includes('Sharpshooter') && def.range > 0) {
+        def = { ...def, accuracy: Math.min(1, (def.accuracy || 0.8) + 0.1) };
+    }
     if (player.ap < def.ap) {
         log('Not enough AP to attack.');
         return;
@@ -1101,7 +1118,9 @@ function useItem() {
     if (!item) return;
     if (item.name === 'First Aid Kit') {
         const before = player.health;
-        player.health = Math.min(maxHealth, player.health + 5);
+        let heal = 5;
+        if (player.perks.includes('Field Medic')) heal += 2;
+        player.health = Math.min(maxHealth, player.health + heal);
         player.conditions.infection = false;
         log(`Used First Aid Kit and healed ${player.health - before} HP.`);
         removeItemFromInventory(item.name, 1);
@@ -1112,7 +1131,9 @@ function useItem() {
         removeItemFromInventory(item.name, 1);
     } else if (item.name === 'Bandage') {
         const before = player.health;
-        player.health = Math.min(maxHealth, player.health + 2);
+        let heal = 2;
+        if (player.perks.includes('Field Medic')) heal += 1;
+        player.health = Math.min(maxHealth, player.health + heal);
         player.conditions.bleeding = false;
         log(`Used Bandage and healed ${player.health - before} HP.`);
         removeItemFromInventory(item.name, 1);
@@ -1149,6 +1170,7 @@ function barricade() {
     if (item.name === 'Wood Planks') add = 2;
     else if (item.name === 'Metal Panels') add = 3;
     else if (item.name === 'Heavy Furniture') add = 5;
+    if (player.perks.includes('Tinkerer')) add += 1;
     if (!tile.barricaded) {
         tile.barricaded = true;
         tile.barricadeHealth = 0;
@@ -1407,9 +1429,11 @@ window.addEventListener('load', () => {
         const username = document.getElementById('username').value.trim();
         const charName = document.getElementById('charName').value.trim();
         const charSex = document.getElementById('charSex').value;
+        const charClass = document.getElementById('charClass').value;
+        player.class = charClass;
 
         if (serverEnabled) {
-            socket.emit('register', { username, charName, charSex });
+            socket.emit('register', { username, charName, charSex, charClass });
         }
 
         loginEl.style.display = 'none';

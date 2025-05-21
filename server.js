@@ -23,6 +23,7 @@ function initPlayer(id, data = {}) {
         username: data.username || 'Guest',
         name: data.charName || 'Survivor',
         sex: data.charSex || 'other',
+        charClass: data.charClass || 'scavenger',
         x: Math.floor(gridSize / 2),
         y: Math.floor(gridSize / 2),
         ap: maxAP,
