@@ -53,6 +53,11 @@ let player = {
     fatigue: 0,
     conditions: { bleeding: false, infection: false },
     perks: [],
+    xp: 0,
+    level: 1,
+    xpToNext: 100,
+    achievements: [],
+    stats: { kills: 0, searches: 0, tilesExplored: 0 },
     visionRange: 2,
     maxWeight: 20
 };
@@ -172,6 +177,22 @@ const zombieSpawnTable = {
     street: ["walker", "runner"],
     warehouse: ["brute", "walker"],
     office: ["walker", "crawler"]
+};
+
+const perkUnlocks = {
+    2: 'Scavenger',
+    4: 'Quiet'
+};
+
+const perkDescriptions = {
+    Scavenger: 'Increased chance to find loot.',
+    Quiet: 'Less noise when searching.'
+};
+
+const achievementDefinitions = {
+    firstKill: { description: 'First zombie kill', condition: () => player.stats.kills >= 1 },
+    tenKills: { description: 'Kill 10 zombies', condition: () => player.stats.kills >= 10 },
+    explorer: { description: 'Explore 20 tiles', condition: () => player.stats.tilesExplored >= 20 }
 };
 
 
@@ -387,6 +408,8 @@ function craftItem(index) {
     });
     addItemToInventory(recipe.result);
     log(`Crafted ${recipe.result}.`);
+    gainXP(10);
+    checkAchievements();
     updateInventory();
 }
 
@@ -417,6 +440,12 @@ function init() {
     player.hunger = 0;
     player.fatigue = 0;
     player.conditions = { bleeding: false, infection: false };
+    player.xp = 0;
+    player.level = 1;
+    player.xpToNext = 100;
+    player.perks = [];
+    player.achievements = [];
+    player.stats = { kills: 0, searches: 0, tilesExplored: 0 };
     player.visionRange = 2;
     createGrid();
     placePlayer();
@@ -760,8 +789,14 @@ function move(dx, dy) {
             log('You force your way into the locked area.');
         }
         const prev = { x: player.x, y: player.y };
+        const newlyExplored = !tile.explored;
         player.x = nx;
         player.y = ny;
+        if (newlyExplored) {
+            player.stats.tilesExplored += 1;
+            gainXP(5);
+            checkAchievements();
+        }
         if (tile.attributes.includes('fire')) {
             player.health -= 3;
             log('The flames scorch you for 3 damage!', 'danger');
@@ -860,6 +895,9 @@ function attack() {
         }
         zombies.splice(zombies.indexOf(target), 1);
         log('Zombie defeated!');
+        player.stats.kills += 1;
+        gainXP(20);
+        checkAchievements();
     }
     moveZombies({ x: player.x, y: player.y });
     draw();
@@ -934,6 +972,9 @@ function search() {
     } else {
         log('Found nothing.');
     }
+    player.stats.searches += 1;
+    gainXP(5);
+    checkAchievements();
     tile.searchedAt = turn;
     const noiseChance = player.perks.includes('Quiet') ? 0.1 : 0.2;
     if (Math.random() < noiseChance) {
@@ -1223,28 +1264,66 @@ function moveZombies(prevPos) {
     });
 }
 
+function gainXP(amount) {
+    player.xp += amount;
+    while (player.xp >= player.xpToNext) {
+        player.xp -= player.xpToNext;
+        player.level += 1;
+        player.xpToNext = Math.floor(player.xpToNext * 1.5);
+        log(`You reached level ${player.level}!`);
+        if (perkUnlocks[player.level]) {
+            const perk = perkUnlocks[player.level];
+            if (!player.perks.includes(perk)) {
+                player.perks.push(perk);
+                log(`Perk unlocked: ${perk}!`);
+            }
+        }
+    }
+    updateStats();
+}
+
+function checkAchievements() {
+    Object.entries(achievementDefinitions).forEach(([key, def]) => {
+        if (def.condition() && !player.achievements.includes(key)) {
+            player.achievements.push(key);
+            log(`Achievement unlocked: ${def.description}!`);
+        }
+    });
+    updateStats();
+}
+
 function updateStats() {
     const healthEl = document.getElementById('health');
     const apEl = document.getElementById('ap');
     const hungerEl = document.getElementById('hunger');
     const fatigueEl = document.getElementById('fatigue');
+    const xpEl = document.getElementById('xp');
+    const levelEl = document.getElementById('level');
+    const perksEl = document.getElementById('perk-display');
+    const achEl = document.getElementById('achievement-display');
     const healthFill = document.querySelector('#health-bar .fill');
     const apFill = document.querySelector('#ap-bar .fill');
     const hungerFill = document.querySelector('#hunger-bar .fill');
     const fatigueFill = document.querySelector('#fatigue-bar .fill');
+    const xpFill = document.querySelector('#xp-bar .fill');
     healthEl.textContent = player.health;
     apEl.textContent = player.ap;
     hungerEl.textContent = player.hunger;
     fatigueEl.textContent = player.fatigue;
+    if (xpEl) xpEl.textContent = `${player.xp}/${player.xpToNext}`;
+    if (levelEl) levelEl.textContent = player.level;
     healthFill.style.transform = `scaleX(${player.health / maxHealth})`;
     apFill.style.transform = `scaleX(${player.ap / maxAP})`;
     hungerFill.style.transform = `scaleX(${(maxHunger - player.hunger) / maxHunger})`;
     fatigueFill.style.transform = `scaleX(${(maxFatigue - player.fatigue) / maxFatigue})`;
+    if (xpFill) xpFill.style.transform = `scaleX(${player.xp / player.xpToNext})`;
     const statusEl = document.getElementById('status');
     const arr = [];
     if (player.conditions.bleeding) arr.push('Bleeding');
     if (player.conditions.infection) arr.push('Infected');
     statusEl.textContent = arr.join(', ');
+    if (perksEl) perksEl.textContent = `Perks: ${player.perks.join(', ') || 'None'}`;
+    if (achEl) achEl.textContent = `Achievements: ${player.achievements.map(a => achievementDefinitions[a].description).join(', ') || 'None'}`;
 }
 
 function updateTurn() {

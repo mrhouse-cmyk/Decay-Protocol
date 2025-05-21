@@ -226,6 +226,17 @@ body {
     margin-bottom: 5px;
 }
 
+#xp-bar .fill {
+    background: linear-gradient(90deg, #ff0, #fa0);
+}
+
+.perks, .achievements {
+    font-size: 12px;
+    color: #8f8;
+    min-height: 14px;
+    margin-bottom: 5px;
+}
+
 .log .info { color: #aaa; }
 .log .warning { color: orange; }
 .log .danger { color: #f55; }
