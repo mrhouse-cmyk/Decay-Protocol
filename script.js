@@ -1,6 +1,35 @@
 const gridSize = 10;
-let player = { x: 0, y: 0, health: 10, ap: 20 };
+const maxHealth = 10;
+const maxAP = 20;
+const areaTypes = ["hospital", "residential", "street", "warehouse", "office"];
+let areaGrid = [];
+let player = { x: 0, y: 0, health: maxHealth, ap: maxAP };
 let zombies = [];
+let inventory = {};
+
+const lootTables = {
+    hospital: [
+        { name: 'First Aid Kit', chance: 0.2 },
+        { name: 'Bandage', chance: 0.5 },
+        { name: 'Energy Drink', chance: 0.1 }
+    ],
+    residential: [
+        { name: 'Bandage', chance: 0.3 },
+        { name: 'Energy Drink', chance: 0.2 }
+    ],
+    street: [
+        { name: 'Bandage', chance: 0.1 },
+        { name: 'Energy Drink', chance: 0.1 }
+    ],
+    warehouse: [
+        { name: 'Energy Drink', chance: 0.3 },
+        { name: 'Bandage', chance: 0.2 }
+    ],
+    office: [
+        { name: 'Bandage', chance: 0.2 },
+        { name: 'Energy Drink', chance: 0.2 }
+    ]
+};
 
 function disableControls() {
     document.querySelectorAll('#controls button').forEach(btn => btn.disabled = true);
@@ -24,17 +53,22 @@ function init() {
     placePlayer();
     placeZombies(5);
     updateStats();
+    updateInventory();
     log('Game started.');
 }
 
 function createGrid() {
     const grid = document.getElementById('grid');
     for (let y = 0; y < gridSize; y++) {
+        areaGrid[y] = [];
         for (let x = 0; x < gridSize; x++) {
             const cell = document.createElement('div');
-            cell.classList.add('cell');
+            const type = areaTypes[Math.floor(Math.random() * areaTypes.length)];
+            cell.classList.add('cell', `area-${type}`);
             cell.dataset.x = x;
             cell.dataset.y = y;
+            cell.dataset.type = type;
+            areaGrid[y][x] = type;
             grid.appendChild(cell);
         }
     }
@@ -56,6 +90,19 @@ function placeZombies(count) {
         }
     }
     draw();
+}
+
+function rollLoot(type) {
+    const table = lootTables[type] || [];
+    let roll = Math.random();
+    let cumulative = 0;
+    for (const item of table) {
+        cumulative += item.chance;
+        if (roll < cumulative) {
+            return item.name;
+        }
+    }
+    return null;
 }
 
 function draw() {
@@ -121,7 +168,7 @@ function attack() {
 
 function rest() {
     const before = player.ap;
-    player.ap = Math.min(20, player.ap + 5);
+    player.ap = Math.min(maxAP, player.ap + 5);
     const gained = player.ap - before;
     if (gained > 0) {
         log(`Rested and regained ${gained} AP.`);
@@ -132,6 +179,69 @@ function rest() {
     draw();
     updateStats();
     zombieAttack();
+}
+
+function search() {
+    if (player.ap < 2) {
+        log('Not enough AP to search.');
+        return;
+    }
+    player.ap -= 2;
+    const type = areaGrid[player.y][player.x];
+    const item = rollLoot(type);
+    if (item) {
+        inventory[item] = (inventory[item] || 0) + 1;
+        log(`Found ${item} in the ${type}.`);
+    } else {
+        log('Found nothing.');
+    }
+    moveZombies({ x: player.x, y: player.y });
+    draw();
+    updateStats();
+    updateInventory();
+    zombieAttack();
+}
+
+function updateInventory() {
+    const list = document.getElementById('inventory-list');
+    const select = document.getElementById('inventorySelect');
+    list.innerHTML = '';
+    select.innerHTML = '';
+    Object.keys(inventory).forEach(name => {
+        const count = inventory[name];
+        if (count > 0) {
+            const div = document.createElement('div');
+            div.textContent = `${name} x${count}`;
+            list.appendChild(div);
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            select.appendChild(opt);
+        }
+    });
+}
+
+function useItem() {
+    const select = document.getElementById('inventorySelect');
+    const item = select.value;
+    if (!item || !inventory[item]) return;
+    if (item === 'First Aid Kit') {
+        const before = player.health;
+        player.health = Math.min(maxHealth, player.health + 5);
+        log(`Used First Aid Kit and healed ${player.health - before} HP.`);
+    } else if (item === 'Energy Drink') {
+        const before = player.ap;
+        player.ap = Math.min(maxAP, player.ap + 5);
+        log(`Used Energy Drink and restored ${player.ap - before} AP.`);
+    } else if (item === 'Bandage') {
+        const before = player.health;
+        player.health = Math.min(maxHealth, player.health + 2);
+        log(`Used Bandage and healed ${player.health - before} HP.`);
+    }
+    inventory[item] -= 1;
+    if (inventory[item] <= 0) delete inventory[item];
+    updateStats();
+    updateInventory();
 }
 
 function moveZombies(prevPos) {
@@ -201,4 +311,6 @@ window.addEventListener('load', () => {
     document.getElementById('east').addEventListener('click', () => move(1, 0));
     document.getElementById('attack').addEventListener('click', attack);
     document.getElementById('rest').addEventListener('click', rest);
+    document.getElementById('search').addEventListener('click', search);
+    document.getElementById('use').addEventListener('click', useItem);
 });

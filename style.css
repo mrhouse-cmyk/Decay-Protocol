@@ -21,11 +21,39 @@ body {
 }
 
 .player {
-    background: green;
+    background: green !important;
 }
 
 .zombie {
-    background: red;
+    background: red !important;
+}
+
+.area-hospital {
+    background: #355;
+}
+
+.area-residential {
+    background: #666;
+}
+
+.area-street {
+    background: #444;
+}
+
+.area-warehouse {
+    background: #754;
+}
+
+.area-office {
+    background: #346;
+}
+
+#inventory {
+    margin-top: 10px;
+}
+
+#inventory-list {
+    margin-bottom: 5px;
 }
 
 #controls button {
