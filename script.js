@@ -10,7 +10,8 @@ const areaDescriptions = {
     residential: 'A cramped residential apartment with scattered belongings.',
     street: 'A cracked street filled with abandoned cars.',
     warehouse: 'A dusty warehouse stacked with boxes.',
-    office: 'A ransacked office floor covered in papers.'
+    office: 'A ransacked office floor covered in papers.',
+    ocean: 'Endless waves crash against the island. The water looks too treacherous to cross.'
 };
 
 const attributeTypes = [
@@ -62,6 +63,7 @@ let player = {
     maxWeight: 20
 };
 let zombies = [];
+let companions = [];
 let inventory = [];
 
 let worldState = {
@@ -449,6 +451,7 @@ function init() {
     player.visionRange = 2;
     createGrid();
     placePlayer();
+    companions = [{ x: player.x, y: player.y, name: 'Companion' }];
     placeZombies(5);
     updateStats();
     const maxW = document.getElementById('max-weight');
@@ -468,7 +471,10 @@ function createGrid() {
         areaGrid[y] = [];
         for (let x = 0; x < gridSize; x++) {
             const cell = document.createElement('div');
-            const type = areaTypes[Math.floor(Math.random() * areaTypes.length)];
+            let type = areaTypes[Math.floor(Math.random() * areaTypes.length)];
+            if (x === 0 || y === 0 || x === gridSize - 1 || y === gridSize - 1) {
+                type = 'ocean';
+            }
             cell.classList.add('cell', `area-${type}`);
             cell.dataset.x = x;
             cell.dataset.y = y;
@@ -486,14 +492,16 @@ function createGrid() {
             areaGrid[y][x] = {
                 type,
                 description: areaDescriptions[type],
+                passable: type !== 'ocean',
                 barricaded: false,
                 barricadeHealth: null,
                 barricadeMaterial: null,
                 searchedAt: -Infinity,
                 visible: false,
-                explored: false, spawnZone: (rand() < 0.05)
+                explored: false,
+                spawnZone: (rand() < 0.05)
             };
-            assignTileAttributes(areaGrid[y][x]);
+            if (type !== 'ocean') assignTileAttributes(areaGrid[y][x]);
             grid.appendChild(cell);
         }
     }
@@ -535,6 +543,7 @@ function placeZombies(count) {
         for (let x = 0; x < gridSize; x++) {
             const t = areaGrid[y][x];
             if ((x !== player.x || y !== player.y) &&
+                t.passable &&
                 !t.barricaded &&
                 !t.attributes.includes('safe') &&
                 !t.attributes.includes('collapsed')) {
@@ -549,7 +558,9 @@ function placeZombies(count) {
         const pos = pool.splice(idx, 1)[0];
         const idxAll = all.findIndex(p => p.x === pos.x && p.y === pos.y);
         if (idxAll !== -1) all.splice(idxAll, 1);
-        zombies.push(createZombie(pos.x, pos.y));
+        if (areaGrid[pos.y][pos.x].passable) {
+            zombies.push(createZombie(pos.x, pos.y));
+        }
     }
     draw();
 }
@@ -604,6 +615,7 @@ function spawnZombieAtEdge() {
         const pos = options.splice(idx, 1)[0];
         if ((pos.x === player.x && pos.y === player.y) ||
             zombies.some(z => z.x === pos.x && z.y === pos.y) ||
+            !areaGrid[pos.y][pos.x].passable ||
             areaGrid[pos.y][pos.x].barricaded ||
             areaGrid[pos.y][pos.x].attributes.includes('safe') ||
             areaGrid[pos.y][pos.x].attributes.includes('collapsed')) {
@@ -622,6 +634,7 @@ function draw() {
         cell.classList.remove(
             'player',
             'zombie',
+            'companion',
             'barricaded',
             'searched',
             'barricade-strong',
@@ -657,6 +670,12 @@ function draw() {
         } else {
             cell.classList.add('tile-unexplored');
             cell.title = '';
+        }
+    });
+    companions.forEach(c => {
+        if (areaGrid[c.y][c.x].visible) {
+            const cell = getCell(c.x, c.y);
+            cell.classList.add('companion');
         }
     });
     zombies.forEach(z => {
@@ -709,6 +728,9 @@ function countAdjacentZombies(x, y) {
 
 function getDescriptionForTile(x, y) {
     const tile = areaGrid[y][x];
+    if (tile.type === 'ocean') {
+        return areaDescriptions.ocean;
+    }
     const base = tile.description || '';
     let barricadeText = '';
     if (tile.barricaded && tile.barricadeMaterial) {
@@ -765,6 +787,10 @@ function move(dx, dy) {
     const ny = player.y + dy;
     if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
         const tile = areaGrid[ny][nx];
+        if (!tile.passable) {
+            log('The ocean blocks your path.');
+            return;
+        }
         if (tile.attributes.includes('collapsed')) {
             log('The way is blocked by debris.');
             return;
@@ -792,6 +818,7 @@ function move(dx, dy) {
         const newlyExplored = !tile.explored;
         player.x = nx;
         player.y = ny;
+        companions.forEach(c => { c.x = prev.x; c.y = prev.y; });
         if (newlyExplored) {
             player.stats.tilesExplored += 1;
             gainXP(5);
@@ -1193,6 +1220,7 @@ function moveZombies(prevPos) {
         if (nx === player.x && ny === player.y) return false;
         if (newPositions.some(p => p.x === nx && p.y === ny)) return false;
         const t = areaGrid[ny][nx];
+        if (!t.passable) return false;
         if (t.barricaded) return false;
         if (t.attributes.includes('safe')) return false;
         if (t.attributes.includes('collapsed')) return false;
