@@ -3,7 +3,8 @@ const maxHealth = 10;
 const maxAP = 20;
 const areaTypes = ["hospital", "residential", "street", "warehouse", "office"];
 let areaGrid = [];
-let player = { x: 0, y: 0, health: maxHealth, ap: maxAP };
+let turn = 0;
+let player = { x: 0, y: 0, health: maxHealth, ap: maxAP, perks: [] };
 let zombies = [];
 let inventory = {};
 
@@ -23,11 +24,13 @@ const lootTables = {
     ],
     warehouse: [
         { name: 'Energy Drink', chance: 0.3 },
-        { name: 'Bandage', chance: 0.2 }
+        { name: 'Bandage', chance: 0.2 },
+        { name: 'Barricade Material', chance: 0.2 }
     ],
     office: [
         { name: 'Bandage', chance: 0.2 },
-        { name: 'Energy Drink', chance: 0.2 }
+        { name: 'Energy Drink', chance: 0.2 },
+        { name: 'Barricade Material', chance: 0.1 }
     ]
 };
 
@@ -54,6 +57,7 @@ function init() {
     placeZombies(5);
     updateStats();
     updateInventory();
+    draw();
     log('Game started.');
 }
 
@@ -68,7 +72,7 @@ function createGrid() {
             cell.dataset.x = x;
             cell.dataset.y = y;
             cell.dataset.type = type;
-            areaGrid[y][x] = type;
+            areaGrid[y][x] = { type, barricaded: false, searchedAt: -Infinity };
             grid.appendChild(cell);
         }
     }
@@ -92,9 +96,9 @@ function placeZombies(count) {
     draw();
 }
 
-function rollLoot(type) {
+function rollLoot(type, bonus = 0) {
     const table = lootTables[type] || [];
-    let roll = Math.random();
+    let roll = Math.random() - bonus;
     let cumulative = 0;
     for (const item of table) {
         cumulative += item.chance;
@@ -105,10 +109,43 @@ function rollLoot(type) {
     return null;
 }
 
+function spawnZombieAtEdge() {
+    const options = [];
+    for (let x = 0; x < gridSize; x++) {
+        options.push({ x, y: 0 });
+        options.push({ x, y: gridSize - 1 });
+    }
+    for (let y = 1; y < gridSize - 1; y++) {
+        options.push({ x: 0, y });
+        options.push({ x: gridSize - 1, y });
+    }
+    while (options.length) {
+        const idx = Math.floor(Math.random() * options.length);
+        const pos = options.splice(idx, 1)[0];
+        if ((pos.x === player.x && pos.y === player.y) ||
+            zombies.some(z => z.x === pos.x && z.y === pos.y) ||
+            areaGrid[pos.y][pos.x].barricaded) {
+            continue;
+        }
+        zombies.push({ x: pos.x, y: pos.y });
+        return true;
+    }
+    return false;
+}
+
 function draw() {
     const cells = document.querySelectorAll('.cell');
     cells.forEach(cell => {
-        cell.classList.remove('player', 'zombie');
+        cell.classList.remove('player', 'zombie', 'barricaded', 'searched');
+        const x = parseInt(cell.dataset.x);
+        const y = parseInt(cell.dataset.y);
+        const tile = areaGrid[y][x];
+        if (tile.barricaded) {
+            cell.classList.add('barricaded');
+        }
+        if (turn - tile.searchedAt < 3) {
+            cell.classList.add('searched');
+        }
     });
     zombies.forEach(z => {
         const cell = getCell(z.x, z.y);
@@ -146,6 +183,7 @@ function move(dx, dy) {
         draw();
         updateStats();
         zombieAttack();
+        nextTurn();
     }
 }
 
@@ -164,6 +202,7 @@ function attack() {
     draw();
     updateStats();
     zombieAttack();
+    nextTurn();
 }
 
 function rest() {
@@ -179,27 +218,42 @@ function rest() {
     draw();
     updateStats();
     zombieAttack();
+    nextTurn();
 }
 
 function search() {
+    const tile = areaGrid[player.y][player.x];
+    if (turn - tile.searchedAt < 3) {
+        log('This area has already been picked clean. Try again later.');
+        return;
+    }
     if (player.ap < 2) {
         log('Not enough AP to search.');
         return;
     }
     player.ap -= 2;
-    const type = areaGrid[player.y][player.x];
-    const item = rollLoot(type);
+    const type = tile.type;
+    const bonus = player.perks.includes('Scavenger') ? 0.1 : 0;
+    const item = rollLoot(type, bonus);
     if (item) {
         inventory[item] = (inventory[item] || 0) + 1;
         log(`Found ${item} in the ${type}.`);
     } else {
         log('Found nothing.');
     }
+    tile.searchedAt = turn;
+    const noiseChance = player.perks.includes('Quiet') ? 0.1 : 0.2;
+    if (Math.random() < noiseChance) {
+        if (spawnZombieAtEdge()) {
+            log('The noise of your search attracted a nearby zombie!');
+        }
+    }
     moveZombies({ x: player.x, y: player.y });
     draw();
     updateStats();
     updateInventory();
     zombieAttack();
+    nextTurn();
 }
 
 function updateInventory() {
@@ -237,11 +291,29 @@ function useItem() {
         const before = player.health;
         player.health = Math.min(maxHealth, player.health + 2);
         log(`Used Bandage and healed ${player.health - before} HP.`);
+    } else if (item === 'Barricade Material') {
+        const tile = areaGrid[player.y][player.x];
+        if (tile.barricaded) {
+            log('This area is already barricaded.');
+            return;
+        }
+        if (player.ap < 1) {
+            log('Not enough AP to barricade.');
+            return;
+        }
+        tile.barricaded = true;
+        player.ap -= 1;
+        log('You barricaded this area.');
     }
     inventory[item] -= 1;
     if (inventory[item] <= 0) delete inventory[item];
     updateStats();
     updateInventory();
+    draw();
+}
+
+function nextTurn() {
+    turn += 1;
 }
 
 function moveZombies(prevPos) {
@@ -255,6 +327,7 @@ function moveZombies(prevPos) {
             if (nx < 0 || nx >= gridSize || ny < 0 || ny >= gridSize) return false;
             if (nx === player.x && ny === player.y) return false;
             if (newPositions.some(p => p.x === nx && p.y === ny)) return false;
+            if (areaGrid[ny][nx].barricaded) return false;
             return true;
         };
 
