@@ -120,6 +120,7 @@ function moveZombies(prevPos) {
         let target = { x: z.x, y: z.y };
         const dx = player.x - z.x;
         const dy = player.y - z.y;
+
         const tryMove = (nx, ny) => {
             if (nx < 0 || nx >= gridSize || ny < 0 || ny >= gridSize) return false;
             if (nx === player.x && ny === player.y) return false;
@@ -147,6 +148,7 @@ function moveZombies(prevPos) {
         if (target.x === prevPos.x && target.y === prevPos.y) {
             log('A zombie shambles into where you just were.');
         }
+
         newPositions.push(target);
         return target;
     });
