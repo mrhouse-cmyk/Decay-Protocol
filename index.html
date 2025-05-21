@@ -6,34 +6,57 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>Decay Protocol</h1>
+    <div id="top-bar">
+        <h1>Decay Protocol</h1>
+        <div class="turn">Turn: <span id="turn">0</span></div>
+    </div>
     <div id="game">
-        <div id="grid"></div>
-        <div id="controls">
-            <button id="north">North</button>
-            <div>
-                <button id="west">West</button>
-                <button id="east">East</button>
+        <div id="grid-container">
+            <div id="grid"></div>
+            <div id="tile-desc" aria-live="polite"></div>
+        </div>
+        <div id="sidebar">
+            <div id="stats" aria-label="Player statistics">
+                <div class="stat">
+                    <span class="icon" aria-hidden="true">❤️</span>
+                    <div class="bar" id="health-bar"><div class="fill"></div></div>
+                    <span id="health" class="value">10</span>
+                </div>
+                <div class="stat">
+                    <span class="icon" aria-hidden="true">⚡</span>
+                    <div class="bar" id="ap-bar"><div class="fill"></div></div>
+                    <span id="ap" class="value">20</span>
+                </div>
             </div>
-            <button id="south">South</button>
-            <button id="attack" style="display:none;">Attack</button>
-            <button id="rest">Rest</button>
-            <button id="search">Search</button>
+            <div id="controls" aria-label="Actions">
+                <div class="move-row">
+                    <button id="north">North</button>
+                </div>
+                <div class="move-row">
+                    <button id="west">West</button>
+                    <button id="east">East</button>
+                </div>
+                <div class="move-row">
+                    <button id="south">South</button>
+                </div>
+                <button id="attack" style="display:none;">Attack</button>
+                <button id="rest">Rest</button>
+                <button id="search">Search</button>
+                <div class="item-use">
+                    <select id="inventorySelect" aria-label="Use Item"></select>
+                    <button id="use">Use</button>
+                </div>
+                <div class="barricade-use">
+                    <select id="barricadeSelect" aria-label="Barricade Material"></select>
+                    <button id="barricade">Barricade</button>
+                </div>
+            </div>
+            <div id="inventory" aria-label="Inventory">
+                <h3>Inventory</h3>
+                <div id="inventory-list"></div>
+            </div>
+            <div id="log" class="log" aria-label="Combat log"></div>
         </div>
-        <div id="stats">
-            <p>Health: <span id="health">10</span></p>
-            <p>AP: <span id="ap">20</span></p>
-        </div>
-        <div id="inventory">
-            <h3>Inventory</h3>
-            <div id="inventory-list"></div>
-            <select id="inventorySelect"></select>
-            <button id="use">Use</button>
-            <br>
-            <select id="barricadeSelect"></select>
-            <button id="barricade">Barricade</button>
-        </div>
-        <div id="log" class="log"></div>
     </div>
     <script src="script.js"></script>
 </body>
