@@ -10,6 +10,30 @@ const areaDescriptions = {
     warehouse: 'A dusty warehouse stacked with boxes.',
     office: 'A ransacked office floor covered in papers.'
 };
+
+const attributeTypes = [
+    'trap',        // chance to injure the player on entry
+    'loot_chest',  // contains rare loot once
+    'locked',      // costs extra AP to enter the first time
+    'storage',     // can be searched repeatedly with diminishing returns
+    'safe',        // zombies cannot enter or spawn here
+    'collapsed'    // impassable terrain
+];
+
+function assignTileAttributes(tile) {
+    tile.attributes = [];
+    if (Math.random() < 0.05) tile.attributes.push('trap');
+    if (Math.random() < 0.03) tile.attributes.push('loot_chest');
+    if (Math.random() < 0.04) tile.attributes.push('locked');
+    if (Math.random() < 0.05) {
+        tile.attributes.push('storage');
+        tile.storageUses = 3;
+    }
+    if (Math.random() < 0.02) tile.attributes.push('safe');
+    if (Math.random() < 0.03) tile.attributes.push('collapsed');
+    tile.lootChestOpened = false;
+    tile.unlocked = false;
+}
 let areaGrid = [];
 let turn = 0;
 let player = { x: 0, y: 0, health: maxHealth, ap: maxAP, perks: [], visionRange };
@@ -122,6 +146,7 @@ function createGrid() {
                 visible: false,
                 explored: false
             };
+            assignTileAttributes(areaGrid[y][x]);
             grid.appendChild(cell);
         }
     }
@@ -160,7 +185,12 @@ function placeZombies(count) {
     while (zombies.length < count) {
         const zx = Math.floor(Math.random() * gridSize);
         const zy = Math.floor(Math.random() * gridSize);
-        if ((zx !== player.x || zy !== player.y) && !zombies.some(z => z.x === zx && z.y === zy)) {
+        const tile = areaGrid[zy][zx];
+        if ((zx !== player.x || zy !== player.y) &&
+            !zombies.some(z => z.x === zx && z.y === zy) &&
+            !tile.barricaded &&
+            !tile.attributes.includes('safe') &&
+            !tile.attributes.includes('collapsed')) {
             zombies.push({ x: zx, y: zy });
         }
     }
@@ -195,7 +225,9 @@ function spawnZombieAtEdge() {
         const pos = options.splice(idx, 1)[0];
         if ((pos.x === player.x && pos.y === player.y) ||
             zombies.some(z => z.x === pos.x && z.y === pos.y) ||
-            areaGrid[pos.y][pos.x].barricaded) {
+            areaGrid[pos.y][pos.x].barricaded ||
+            areaGrid[pos.y][pos.x].attributes.includes('safe') ||
+            areaGrid[pos.y][pos.x].attributes.includes('collapsed')) {
             continue;
         }
         zombies.push({ x: pos.x, y: pos.y });
@@ -322,7 +354,14 @@ function getDescriptionForTile(x, y) {
     } else {
         mod = 'The area is swarming with the dead.';
     }
-    return `${base} ${barricadeText} ${mod}`.trim();
+    let attrText = '';
+    if (tile.attributes.includes('safe')) attrText += ' It feels safe here.';
+    if (tile.attributes.includes('loot_chest') && !tile.lootChestOpened) attrText += ' A loot chest rests here.';
+    if (tile.attributes.includes('storage')) attrText += ' There might be supplies around.';
+    if (tile.attributes.includes('trap') && !tile.trapTriggered) attrText += ' You sense a trap.';
+    if (tile.attributes.includes('locked') && !tile.unlocked) attrText += ' The entrance is locked.';
+    if (tile.attributes.includes('collapsed')) attrText += ' Debris blocks the way.';
+    return `${base} ${barricadeText} ${attrText} ${mod}`.trim();
 }
 
 function move(dx, dy) {
@@ -333,10 +372,42 @@ function move(dx, dy) {
     const nx = player.x + dx;
     const ny = player.y + dy;
     if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+        const tile = areaGrid[ny][nx];
+        if (tile.attributes.includes('collapsed')) {
+            log('The way is blocked by debris.');
+            return;
+        }
+        let cost = 1;
+        if (tile.attributes.includes('locked') && !tile.unlocked) {
+            cost += 1;
+        }
+        if (player.ap < cost) {
+            log('Not enough AP to move.');
+            return;
+        }
+        player.ap -= cost;
+        if (tile.attributes.includes('locked') && !tile.unlocked) {
+            tile.unlocked = true;
+            log('You force your way into the locked area.');
+        }
         const prev = { x: player.x, y: player.y };
         player.x = nx;
         player.y = ny;
-        player.ap -= 1;
+        if (tile.attributes.includes('trap') && !tile.trapTriggered) {
+            tile.trapTriggered = true;
+            if (Math.random() < 0.5) {
+                player.health -= 1;
+                log('You triggered a trap and took 1 damage.', 'danger');
+                if (player.health <= 0) {
+                    player.health = 0;
+                    log('You have died.');
+                    disableControls();
+                }
+            } else {
+                log('You narrowly avoid a trap.');
+            }
+            updateStats();
+        }
         log(`Moved to (${nx}, ${ny}).`);
         log(getDescriptionForTile(nx, ny));
         updateTileInfo();
@@ -384,7 +455,7 @@ function rest() {
 
 function search() {
     const tile = areaGrid[player.y][player.x];
-    if (turn - tile.searchedAt < 3) {
+    if (!tile.attributes.includes('storage') && turn - tile.searchedAt < 3) {
         log('This area has already been picked clean. Try again later.');
         return;
     }
@@ -394,8 +465,24 @@ function search() {
     }
     player.ap -= 2;
     const type = tile.type;
-    const bonus = player.perks.includes('Scavenger') ? 0.1 : 0;
-    const item = rollLoot(type, bonus);
+    let bonus = player.perks.includes('Scavenger') ? 0.1 : 0;
+    let item;
+    if (tile.attributes.includes('loot_chest') && !tile.lootChestOpened) {
+        item = rollLoot(type, bonus + 0.3);
+        tile.lootChestOpened = true;
+        tile.attributes = tile.attributes.filter(a => a !== 'loot_chest');
+        log('You crack open a loot chest.');
+    } else {
+        if (tile.attributes.includes('storage')) {
+            tile.storageUses = tile.storageUses || 3;
+            bonus -= (3 - tile.storageUses) * 0.1;
+            tile.storageUses -= 1;
+            if (tile.storageUses <= 0) {
+                tile.attributes = tile.attributes.filter(a => a !== 'storage');
+            }
+        }
+        item = rollLoot(type, bonus);
+    }
     if (item) {
         inventory[item] = (inventory[item] || 0) + 1;
         log(`Found ${item} in the ${type}.`);
@@ -563,7 +650,10 @@ function moveZombies(prevPos) {
             if (nx < 0 || nx >= gridSize || ny < 0 || ny >= gridSize) return false;
             if (nx === player.x && ny === player.y) return false;
             if (newPositions.some(p => p.x === nx && p.y === ny)) return false;
-            if (areaGrid[ny][nx].barricaded) return false;
+            const t = areaGrid[ny][nx];
+            if (t.barricaded) return false;
+            if (t.attributes.includes('safe')) return false;
+            if (t.attributes.includes('collapsed')) return false;
             return true;
         };
 
