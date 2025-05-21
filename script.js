@@ -15,29 +15,47 @@ let player = { x: 0, y: 0, health: maxHealth, ap: maxAP, perks: [] };
 let zombies = [];
 let inventory = {};
 
+const barricadeDescriptors = {
+    'Wood Planks': 'rough planks nailed across the entry.',
+    'Metal Panels': 'hastily welded scrap sheets blocking the path.',
+    'Heavy Furniture': 'a wall of broken furniture braced in place.'
+};
+
 const lootTables = {
     hospital: [
         { name: 'First Aid Kit', chance: 0.2 },
         { name: 'Bandage', chance: 0.5 },
-        { name: 'Energy Drink', chance: 0.1 }
+        { name: 'Energy Drink', chance: 0.1 },
+        { name: 'Wood Planks', chance: 0.1 },
+        { name: 'Metal Panels', chance: 0.05 },
+        { name: 'Heavy Furniture', chance: 0.02 }
     ],
     residential: [
         { name: 'Bandage', chance: 0.3 },
-        { name: 'Energy Drink', chance: 0.2 }
+        { name: 'Energy Drink', chance: 0.2 },
+        { name: 'Wood Planks', chance: 0.2 },
+        { name: 'Metal Panels', chance: 0.1 },
+        { name: 'Heavy Furniture', chance: 0.05 }
     ],
     street: [
         { name: 'Bandage', chance: 0.1 },
-        { name: 'Energy Drink', chance: 0.1 }
+        { name: 'Energy Drink', chance: 0.1 },
+        { name: 'Wood Planks', chance: 0.15 },
+        { name: 'Metal Panels', chance: 0.05 }
     ],
     warehouse: [
         { name: 'Energy Drink', chance: 0.3 },
         { name: 'Bandage', chance: 0.2 },
-        { name: 'Barricade Material', chance: 0.2 }
+        { name: 'Wood Planks', chance: 0.3 },
+        { name: 'Metal Panels', chance: 0.2 },
+        { name: 'Heavy Furniture', chance: 0.1 }
     ],
     office: [
         { name: 'Bandage', chance: 0.2 },
         { name: 'Energy Drink', chance: 0.2 },
-        { name: 'Barricade Material', chance: 0.1 }
+        { name: 'Wood Planks', chance: 0.15 },
+        { name: 'Metal Panels', chance: 0.1 },
+        { name: 'Heavy Furniture', chance: 0.05 }
     ]
 };
 
@@ -85,6 +103,7 @@ function createGrid() {
                 description: areaDescriptions[type],
                 barricaded: false,
                 barricadeHealth: null,
+                barricadeMaterial: null,
                 searchedAt: -Infinity
             };
             grid.appendChild(cell);
@@ -151,12 +170,18 @@ function draw() {
     const cells = document.querySelectorAll('.cell');
     cells.forEach(cell => {
         cell.classList.remove('player', 'zombie', 'barricaded', 'searched',
-            'barricade-1', 'barricade-2', 'barricade-3', 'barricade-4', 'barricade-5');
+            'barricade-strong', 'barricade-weak', 'barricade-critical');
         const x = parseInt(cell.dataset.x);
         const y = parseInt(cell.dataset.y);
         const tile = areaGrid[y][x];
         if (tile.barricaded) {
-            cell.classList.add('barricaded', `barricade-${tile.barricadeHealth}`);
+            let tier = 'barricade-strong';
+            if (tile.barricadeHealth <= 3) {
+                tier = 'barricade-critical';
+            } else if (tile.barricadeHealth <= 6) {
+                tier = 'barricade-weak';
+            }
+            cell.classList.add('barricaded', tier);
         }
         if (turn - tile.searchedAt < 3) {
             cell.classList.add('searched');
@@ -205,6 +230,28 @@ function countAdjacentZombies(x, y) {
 function getDescriptionForTile(x, y) {
     const tile = areaGrid[y][x];
     const base = tile.description || '';
+    let barricadeText = '';
+    if (tile.barricaded && tile.barricadeMaterial) {
+        barricadeText = `The area is barricaded with ${barricadeDescriptors[tile.barricadeMaterial]}`;
+    } else {
+        const dirs = [
+            { x: 1, y: 0 },
+            { x: -1, y: 0 },
+            { x: 0, y: 1 },
+            { x: 0, y: -1 }
+        ];
+        for (const d of dirs) {
+            const nx = x + d.x;
+            const ny = y + d.y;
+            if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+                const neighbor = areaGrid[ny][nx];
+                if (neighbor.barricaded && neighbor.barricadeMaterial) {
+                    barricadeText = `The area is barricaded with ${barricadeDescriptors[neighbor.barricadeMaterial]}`;
+                    break;
+                }
+            }
+        }
+    }
     const count = countAdjacentZombies(x, y);
     let mod = '';
     if (count === 0) {
@@ -214,7 +261,7 @@ function getDescriptionForTile(x, y) {
     } else {
         mod = 'The area is swarming with the dead.';
     }
-    return `${base} ${mod}`;
+    return `${base} ${barricadeText} ${mod}`.trim();
 }
 
 function move(dx, dy) {
@@ -311,18 +358,28 @@ function search() {
 function updateInventory() {
     const list = document.getElementById('inventory-list');
     const select = document.getElementById('inventorySelect');
+    const barricadeSelect = document.getElementById('barricadeSelect');
     list.innerHTML = '';
     select.innerHTML = '';
+    barricadeSelect.innerHTML = '';
     Object.keys(inventory).forEach(name => {
         const count = inventory[name];
         if (count > 0) {
             const div = document.createElement('div');
             div.textContent = `${name} x${count}`;
             list.appendChild(div);
-            const opt = document.createElement('option');
-            opt.value = name;
-            opt.textContent = name;
-            select.appendChild(opt);
+            if (['First Aid Kit', 'Bandage', 'Energy Drink'].includes(name)) {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                select.appendChild(opt);
+            }
+            if (['Wood Planks', 'Metal Panels', 'Heavy Furniture'].includes(name)) {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                barricadeSelect.appendChild(opt);
+            }
         }
     });
 }
@@ -343,26 +400,49 @@ function useItem() {
         const before = player.health;
         player.health = Math.min(maxHealth, player.health + 2);
         log(`Used Bandage and healed ${player.health - before} HP.`);
-    } else if (item === 'Barricade Material') {
-        const tile = areaGrid[player.y][player.x];
-        if (tile.barricaded) {
-            log('This area is already barricaded.');
-            return;
-        }
-        if (player.ap < 1) {
-            log('Not enough AP to barricade.');
-            return;
-        }
-        tile.barricaded = true;
-        tile.barricadeHealth = 5;
-        player.ap -= 1;
-        log('You barricaded this area.');
+    } else if (item === 'Wood Planks' || item === 'Metal Panels' || item === 'Heavy Furniture') {
+        log('Select Barricade and choose a material to build or reinforce.');
+        return;
     }
     inventory[item] -= 1;
     if (inventory[item] <= 0) delete inventory[item];
     updateStats();
     updateInventory();
     draw();
+}
+
+function barricade() {
+    const select = document.getElementById('barricadeSelect');
+    const item = select.value;
+    if (!item || !inventory[item]) {
+        log('No barricade material selected.');
+        return;
+    }
+    if (player.ap < 1) {
+        log('Not enough AP to barricade.');
+        return;
+    }
+    const tile = areaGrid[player.y][player.x];
+    let add = 0;
+    if (item === 'Wood Planks') add = 2;
+    else if (item === 'Metal Panels') add = 3;
+    else if (item === 'Heavy Furniture') add = 5;
+    if (!tile.barricaded) {
+        tile.barricaded = true;
+        tile.barricadeHealth = 0;
+    }
+    tile.barricadeHealth = Math.min(10, tile.barricadeHealth + add);
+    tile.barricadeMaterial = item;
+    inventory[item] -= 1;
+    if (inventory[item] <= 0) delete inventory[item];
+    player.ap -= 1;
+    log(`You reinforced the barricade with ${item}. Strength: ${tile.barricadeHealth}/10.`);
+    moveZombies({ x: player.x, y: player.y });
+    draw();
+    updateStats();
+    updateInventory();
+    zombieAttack();
+    nextTurn();
 }
 
 function degradeBarricades() {
@@ -376,6 +456,7 @@ function degradeBarricades() {
                     if (tile.barricadeHealth <= 0) {
                         tile.barricaded = false;
                         tile.barricadeHealth = null;
+                        tile.barricadeMaterial = null;
                         log('The barricade has been broken down by the undead!');
                     }
                 }
@@ -461,4 +542,5 @@ window.addEventListener('load', () => {
     document.getElementById('rest').addEventListener('click', rest);
     document.getElementById('search').addEventListener('click', search);
     document.getElementById('use').addEventListener('click', useItem);
+    document.getElementById('barricade').addEventListener('click', barricade);
 });
