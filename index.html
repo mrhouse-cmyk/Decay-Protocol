@@ -27,6 +27,17 @@
                     <div class="bar" id="ap-bar"><div class="fill"></div></div>
                     <span id="ap" class="value">20</span>
                 </div>
+                <div class="stat">
+                    <span class="icon" aria-hidden="true">🍗</span>
+                    <div class="bar" id="hunger-bar"><div class="fill"></div></div>
+                    <span id="hunger" class="value">0</span>
+                </div>
+                <div class="stat">
+                    <span class="icon" aria-hidden="true">😴</span>
+                    <div class="bar" id="fatigue-bar"><div class="fill"></div></div>
+                    <span id="fatigue" class="value">0</span>
+                </div>
+                <div id="status" class="status"></div>
             </div>
             <div id="controls" aria-label="Actions">
                 <div class="move-row">
@@ -39,6 +50,7 @@
                 <div class="move-row">
                     <button id="south">South</button>
                 </div>
+                <select id="weaponSelect" aria-label="Equipped Weapon"></select>
                 <button id="attack" style="display:none;">Attack</button>
                 <button id="rest">Rest</button>
                 <button id="search">Search</button>
