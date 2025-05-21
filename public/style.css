@@ -1,0 +1,282 @@
+body {
+    font-family: Arial, sans-serif;
+    background: #181818;
+    color: #eee;
+    margin: 0;
+}
+
+#top-bar {
+    background: #222;
+    color: #aaffaa;
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+#game {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 10px;
+    gap: 20px;
+}
+
+#grid-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#grid {
+    display: grid;
+    grid-template-columns: repeat(10, 40px);
+    grid-template-rows: repeat(10, 40px);
+    gap: 2px;
+    width: max-content;
+}
+
+#tile-desc {
+    margin-top: 5px;
+    min-height: 40px;
+    color: #ccc;
+    max-width: 400px;
+    text-align: center;
+}
+
+.cell {
+    width: 40px;
+    height: 40px;
+    border: 1px solid #555;
+    background: #333;
+    position: relative;
+    transition: background 0.3s, filter 0.3s, opacity 0.3s;
+}
+
+.cell:hover {
+    filter: brightness(1.2);
+    cursor: pointer;
+}
+
+.player {
+    background: #0a0 !important;
+    box-shadow: 0 0 5px 2px #0f0;
+}
+
+.zombie {
+    background: #700 !important;
+}
+.zombie-runner {
+    background: #900 !important;
+}
+.zombie-brute {
+    background: #522 !important;
+}
+.zombie-crawler {
+    background: #550 !important;
+}
+.zombie-exploder {
+    background: #a30 !important;
+}
+
+.spawn-zone {
+    box-shadow: inset 0 0 0 2px yellow;
+}
+
+.area-hospital {
+    background: #355;
+}
+
+.area-residential {
+    background: #666;
+}
+
+.area-street {
+    background: #444;
+}
+
+.area-warehouse {
+    background: #754;
+}
+
+.area-office {
+    background: #346;
+}
+.area-ocean {
+    background: #0077be;
+}
+.companion {
+    background: #5f9ea0;
+}
+
+#inventory {
+    margin-top: 10px;
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid #333;
+    padding: 5px;
+}
+
+#inventory-list div {
+    margin-bottom: 2px;
+}
+
+#weight {
+    margin-bottom: 4px;
+    font-size: 0.9em;
+}
+
+.crafting {
+    margin-top: 5px;
+}
+
+#controls button {
+    margin: 3px;
+    background: #333;
+    color: #eee;
+    border: 1px solid #555;
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#controls button:hover {
+    background: #555;
+}
+
+#log {
+    margin-top: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+    background: #1a1a1a;
+    padding: 5px;
+    text-align: left;
+    border: 1px solid #333;
+}
+
+.barricaded {
+    border: 2px solid #aaa !important;
+}
+
+.barricade-strong {
+    box-shadow: inset 0 0 0 2px #0f0;
+}
+
+.barricade-weak {
+    box-shadow: inset 0 0 0 2px orange;
+}
+
+.barricade-critical {
+    box-shadow: inset 0 0 0 2px red;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% { filter: brightness(1); }
+    50% { filter: brightness(0.5); }
+    100% { filter: brightness(1); }
+}
+
+.searched {
+    opacity: 0.6;
+}
+
+#sidebar {
+    width: 250px;
+    max-width: 40vw;
+}
+
+@media (max-width: 768px) {
+    #game {
+        flex-direction: column;
+        align-items: center;
+    }
+    #sidebar {
+        width: 100%;
+        max-width: none;
+    }
+}
+
+.stat {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.stat .bar {
+    flex: 1;
+    background: #333;
+    height: 12px;
+    margin: 0 5px;
+    position: relative;
+    overflow: hidden;
+}
+
+.stat .fill {
+    background: linear-gradient(90deg, #0f0, #f00);
+    height: 100%;
+    width: 100%;
+    transform-origin: left;
+    transition: transform 0.3s;
+}
+
+.stat .icon {
+    width: 20px;
+}
+
+.status {
+    font-size: 12px;
+    color: #f55;
+    min-height: 14px;
+    margin-bottom: 5px;
+}
+
+#xp-bar .fill {
+    background: linear-gradient(90deg, #ff0, #fa0);
+}
+
+.perks, .achievements {
+    font-size: 12px;
+    color: #8f8;
+    min-height: 14px;
+    margin-bottom: 5px;
+}
+
+.log .info { color: #aaa; }
+.log .warning { color: orange; }
+.log .danger { color: #f55; }
+
+.rare { color: #38f; }
+.epic { color: #b0f; }
+
+.flash {
+    animation: flashBg 0.5s;
+}
+
+@keyframes flashBg {
+    from { background: rgba(255,255,255,0.3); }
+    to { background: transparent; }
+}
+
+/* Fog of War */
+.tile-visible {
+    transition: filter 0.3s, background 0.3s;
+}
+
+.tile-explored {
+    filter: brightness(0.5);
+}
+
+.tile-unexplored {
+    background: #000 !important;
+}
+
+.highlight-unexplored .tile-unexplored {
+    outline: 2px dashed #777;
+}
+
+@keyframes tileFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Decay Protocol</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="top-bar">
+        <h1>Decay Protocol</h1>
+        <div class="turn">Turn: <span id="turn">0</span></div>
+    </div>
+    <div id="game">
+        <div id="grid-container">
+            <div id="grid"></div>
+            <div id="tile-desc" aria-live="polite"></div>
+        </div>
+        <div id="sidebar">
+                <div id="stats" aria-label="Player statistics">
+                <div class="stat">
+                    <span class="icon" aria-hidden="true">❤️</span>
+                    <div class="bar" id="health-bar"><div class="fill"></div></div>
+                    <span id="health" class="value">10</span>
+                </div>
+                <div class="stat">
+                    <span class="icon" aria-hidden="true">⚡</span>
+                    <div class="bar" id="ap-bar"><div class="fill"></div></div>
+                    <span id="ap" class="value">20</span>
+                </div>
+                <div class="stat">
+                    <span class="icon" aria-hidden="true">🍗</span>
+                    <div class="bar" id="hunger-bar"><div class="fill"></div></div>
+                    <span id="hunger" class="value">0</span>
+                </div>
+                <div class="stat">
+                    <span class="icon" aria-hidden="true">😴</span>
+                    <div class="bar" id="fatigue-bar"><div class="fill"></div></div>
+                    <span id="fatigue" class="value">0</span>
+                </div>
+                <div id="status" class="status"></div>
+                <div class="stat">
+                    <span class="icon" aria-hidden="true">⭐</span>
+                    <div class="bar" id="xp-bar"><div class="fill"></div></div>
+                    <span id="xp" class="value">0/100</span>
+                </div>
+                <div class="stat">Level: <span id="level" class="value">1</span></div>
+                <div id="perk-display" class="perks"></div>
+                <div id="achievement-display" class="achievements"></div>
+            </div>
+            <div id="controls" aria-label="Actions">
+                <div class="move-row">
+                    <button id="north">North</button>
+                </div>
+                <div class="move-row">
+                    <button id="west">West</button>
+                    <button id="east">East</button>
+                </div>
+                <div class="move-row">
+                    <button id="south">South</button>
+                </div>
+                <select id="weaponSelect" aria-label="Equipped Weapon"></select>
+                <button id="attack" style="display:none;">Attack</button>
+                <button id="rest">Rest</button>
+                <button id="search">Search</button>
+                <div class="item-use">
+                    <select id="inventorySelect" aria-label="Use Item"></select>
+                    <button id="use">Use</button>
+                </div>
+                <div class="barricade-use">
+                    <select id="barricadeSelect" aria-label="Barricade Material"></select>
+                    <button id="barricade">Barricade</button>
+                </div>
+                <div class="crafting">
+                    <select id="craftSelect" aria-label="Crafting Recipe"></select>
+                    <button id="craft">Craft</button>
+                </div>
+                <label class="highlight-toggle"><input type="checkbox" id="highlightToggle"> Highlight unexplored</label>
+            </div>
+            <div id="inventory" aria-label="Inventory">
+                <h3>Inventory</h3>
+                <div id="weight">Weight: <span id="current-weight">0</span>/<span id="max-weight">20</span></div>
+                <div id="inventory-list"></div>
+            </div>
+            <div id="log" class="log" aria-label="Combat log"></div>
+        </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
