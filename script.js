@@ -17,7 +17,10 @@ const attributeTypes = [
     'locked',      // costs extra AP to enter the first time
     'storage',     // can be searched repeatedly with diminishing returns
     'safe',        // zombies cannot enter or spawn here
-    'collapsed'    // impassable terrain
+    'collapsed',   // impassable terrain
+    'fire',        // burning tile that deals damage
+    'radiation',   // damages player over time
+    'quarantine'   // blocked off area
 ];
 
 function assignTileAttributes(tile) {
@@ -31,14 +34,25 @@ function assignTileAttributes(tile) {
     }
     if (Math.random() < 0.02) tile.attributes.push('safe');
     if (Math.random() < 0.03) tile.attributes.push('collapsed');
+    if (Math.random() < 0.02) tile.attributes.push('fire');
+    if (Math.random() < 0.01) tile.attributes.push('radiation');
+    if (Math.random() < 0.01) tile.attributes.push('quarantine');
     tile.lootChestOpened = false;
     tile.unlocked = false;
 }
 let areaGrid = [];
 let turn = 0;
-let player = { x: 0, y: 0, health: maxHealth, ap: maxAP, perks: [], visionRange };
+let player = { x: 0, y: 0, health: maxHealth, ap: maxAP, perks: [], visionRange: 2 };
 let zombies = [];
 let inventory = {};
+
+let worldState = {
+    turn: 0,
+    timeOfDay: 'day',
+    activeEvents: [],
+    eventDuration: {},
+    weather: 'clear'
+};
 
 const barricadeDescriptors = {
     'Wood Planks': 'rough planks nailed across the entry.',
@@ -84,14 +98,144 @@ const lootTables = {
     ]
 };
 
+const globalEventDefinitions = {
+    acidRain: {
+        duration: 3,
+        onStart() {
+            log('Acid rain begins falling. Seek shelter!');
+            player.visionRange = Math.max(1, player.visionRange - 1);
+        },
+        onTurn() {
+            if (areaGrid[player.y][player.x].type === 'street') {
+                player.health -= 1;
+                updateStats();
+                log('The acid rain burns your skin!', 'danger');
+            }
+        },
+        onEnd() {
+            player.visionRange = worldState.timeOfDay === 'day' ? 2 : 1;
+            log('The acid rain subsides.');
+        }
+    },
+    electricalStorm: {
+        duration: () => Math.floor(Math.random() * 2) + 1,
+        onStart() {
+            log('Lightning flashes in the distance... the city\u2019s nerves twitch.');
+        },
+        onEnd() { log('The electrical storm passes.'); }
+    },
+    hordeSurge: {
+        duration: 3,
+        onStart() {
+            for (let i = 0; i < 5; i++) spawnZombieAtEdge();
+            log('The groans of the dead echo louder than ever.');
+        },
+        onEnd() { log('The surge of undead fades.'); }
+    },
+    airdrop: {
+        duration: 0,
+        onStart() {
+            let spawned = false;
+            while (!spawned) {
+                const x = Math.floor(Math.random() * gridSize);
+                const y = Math.floor(Math.random() * gridSize);
+                const tile = areaGrid[y][x];
+                if (!tile.attributes.includes('collapsed')) {
+                    tile.attributes.push('loot_chest', 'locked');
+                    tile.airdrop = true;
+                    spawned = true;
+                }
+            }
+            log('A drone whirrs overhead and disappears into the fog.');
+        }
+    }
+};
+
 function disableControls() {
     document.querySelectorAll('#controls button').forEach(btn => btn.disabled = true);
+}
+
+function electricalInterference() {
+    if (worldState.activeEvents.includes('electricalStorm') && Math.random() < 0.5) {
+        log('Electrical interference disrupts your action!');
+        moveZombies({ x: player.x, y: player.y });
+        draw();
+        zombieAttack();
+        nextTurn();
+        return true;
+    }
+    return false;
+}
+
+function triggerEvent(name) {
+    const def = globalEventDefinitions[name];
+    if (!def) return;
+    worldState.activeEvents.push(name);
+    const dur = typeof def.duration === 'function' ? def.duration() : def.duration;
+    if (dur > 0) worldState.eventDuration[name] = dur;
+    if (def.onStart) def.onStart();
+}
+
+function processActiveEvents() {
+    worldState.activeEvents.slice().forEach(name => {
+        const def = globalEventDefinitions[name];
+        if (def.onTurn) def.onTurn();
+        if (worldState.eventDuration[name] != null) {
+            worldState.eventDuration[name] -= 1;
+            if (worldState.eventDuration[name] <= 0) {
+                delete worldState.eventDuration[name];
+                worldState.activeEvents = worldState.activeEvents.filter(e => e !== name);
+                if (def.onEnd) def.onEnd();
+            }
+        }
+    });
+}
+
+function processTileEvents() {
+    const newFires = [];
+    for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+            const tile = areaGrid[y][x];
+            if (tile.attributes.includes('fire')) {
+                const dirs = [
+                    { x: 1, y: 0 },
+                    { x: -1, y: 0 },
+                    { x: 0, y: 1 },
+                    { x: 0, y: -1 }
+                ];
+                dirs.forEach(d => {
+                    const nx = x + d.x;
+                    const ny = y + d.y;
+                    if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+                        const nTile = areaGrid[ny][nx];
+                        if (!nTile.attributes.includes('fire') && Math.random() < 0.2) {
+                            newFires.push(nTile);
+                        }
+                    }
+                });
+            }
+        }
+    }
+    if (newFires.length) log('The flames are spreading!');
+    newFires.forEach(t => t.attributes.push('fire'));
+}
+
+function rollGlobalEvent() {
+    if (worldState.turn % 5 === 0 && Math.random() < 0.5) {
+        const keys = Object.keys(globalEventDefinitions);
+        const name = keys[Math.floor(Math.random() * keys.length)];
+        triggerEvent(name);
+    }
 }
 
 function zombieAttack() {
     if (zombies.some(z => z.x === player.x && z.y === player.y)) {
         player.health -= 1;
         log('A zombie attacked you for 1 damage.');
+        if (worldState.activeEvents.includes('electricalStorm') && Math.random() < 0.5) {
+            player.health -= 1;
+            log('The storm drives the zombie into a frenzy! Another hit!', 'danger');
+        }
         if (player.health <= 0) {
             player.health = 0;
             log('You have died.');
@@ -102,6 +246,11 @@ function zombieAttack() {
 }
 
 function init() {
+    worldState.turn = 0;
+    worldState.timeOfDay = 'day';
+    worldState.activeEvents = [];
+    worldState.eventDuration = {};
+    player.visionRange = 2;
     createGrid();
     placePlayer();
     placeZombies(5);
@@ -361,10 +510,14 @@ function getDescriptionForTile(x, y) {
     if (tile.attributes.includes('trap') && !tile.trapTriggered) attrText += ' You sense a trap.';
     if (tile.attributes.includes('locked') && !tile.unlocked) attrText += ' The entrance is locked.';
     if (tile.attributes.includes('collapsed')) attrText += ' Debris blocks the way.';
+    if (tile.attributes.includes('fire')) attrText += ' Flames roar here.';
+    if (tile.attributes.includes('radiation')) attrText += ' A sickly glow radiates.';
+    if (tile.attributes.includes('quarantine')) attrText += ' Military barricades stand here.';
     return `${base} ${barricadeText} ${attrText} ${mod}`.trim();
 }
 
 function move(dx, dy) {
+    if (electricalInterference()) return;
     if (player.ap <= 0) {
         log('Not enough AP to move.');
         return;
@@ -375,6 +528,10 @@ function move(dx, dy) {
         const tile = areaGrid[ny][nx];
         if (tile.attributes.includes('collapsed')) {
             log('The way is blocked by debris.');
+            return;
+        }
+        if (tile.attributes.includes('quarantine')) {
+            log('Military barricades block your path.');
             return;
         }
         let cost = 1;
@@ -393,6 +550,10 @@ function move(dx, dy) {
         const prev = { x: player.x, y: player.y };
         player.x = nx;
         player.y = ny;
+        if (tile.attributes.includes('fire')) {
+            player.health -= 3;
+            log('The flames scorch you for 3 damage!', 'danger');
+        }
         if (tile.attributes.includes('trap') && !tile.trapTriggered) {
             tile.trapTriggered = true;
             if (Math.random() < 0.5) {
@@ -420,6 +581,7 @@ function move(dx, dy) {
 }
 
 function attack() {
+    if (electricalInterference()) return;
     if (player.ap < 2) {
         log('Not enough AP to attack.');
         return;
@@ -438,13 +600,19 @@ function attack() {
 }
 
 function rest() {
-    const before = player.ap;
-    player.ap = Math.min(maxAP, player.ap + 5);
-    const gained = player.ap - before;
-    if (gained > 0) {
-        log(`Rested and regained ${gained} AP.`);
+    if (electricalInterference()) return;
+    const tile = areaGrid[player.y][player.x];
+    if (worldState.timeOfDay === 'night' && !tile.attributes.includes('safe') && !tile.barricaded) {
+        log("It's too dangerous to rest here at night.");
     } else {
-        log('AP is already full.');
+        const before = player.ap;
+        player.ap = Math.min(maxAP, player.ap + 5);
+        const gained = player.ap - before;
+        if (gained > 0) {
+            log(`Rested and regained ${gained} AP.`);
+        } else {
+            log('AP is already full.');
+        }
     }
     moveZombies({ x: player.x, y: player.y });
     draw();
@@ -454,6 +622,7 @@ function rest() {
 }
 
 function search() {
+    if (electricalInterference()) return;
     const tile = areaGrid[player.y][player.x];
     if (!tile.attributes.includes('storage') && turn - tile.searchedAt < 3) {
         log('This area has already been picked clean. Try again later.');
@@ -468,9 +637,12 @@ function search() {
     let bonus = player.perks.includes('Scavenger') ? 0.1 : 0;
     let item;
     if (tile.attributes.includes('loot_chest') && !tile.lootChestOpened) {
-        item = rollLoot(type, bonus + 0.3);
+        let extra = 0.3;
+        if (tile.airdrop) extra += 0.5;
+        item = rollLoot(type, bonus + extra);
         tile.lootChestOpened = true;
         tile.attributes = tile.attributes.filter(a => a !== 'loot_chest');
+        if (tile.airdrop) delete tile.airdrop;
         log('You crack open a loot chest.');
     } else {
         if (tile.attributes.includes('storage')) {
@@ -575,6 +747,7 @@ function useItem() {
 }
 
 function barricade() {
+    if (electricalInterference()) return;
     const select = document.getElementById('barricadeSelect');
     const item = select.value;
     if (!item || !inventory[item]) {
@@ -631,17 +804,32 @@ function degradeBarricades() {
 
 function nextTurn() {
     degradeBarricades();
+    processTileEvents();
+    processActiveEvents();
+    if (areaGrid[player.y][player.x].attributes.includes('radiation')) {
+        player.health -= 1;
+        log('The radiation saps your strength.', 'danger');
+        updateStats();
+    }
     draw();
     const desc = getDescriptionForTile(player.x, player.y);
     log(desc);
     updateTileInfo();
     turn += 1;
+    worldState.turn = turn;
+    if (worldState.turn % 10 === 0) {
+        worldState.timeOfDay = worldState.timeOfDay === 'day' ? 'night' : 'day';
+        player.visionRange = worldState.timeOfDay === 'day' ? 2 : 1;
+        log(worldState.timeOfDay === 'day' ? 'A faint blue light hints that dawn is coming…' : 'Dusk settles in over the city.');
+    }
+    rollGlobalEvent();
     updateTurn();
 }
 
 function moveZombies(prevPos) {
+    if (worldState.timeOfDay === 'day' && worldState.turn % 2 === 1) return;
     const newPositions = [];
-    zombies = zombies.map(z => {
+    const moveOne = z => {
         let target = { x: z.x, y: z.y };
         const dx = player.x - z.x;
         const dy = player.y - z.y;
@@ -680,6 +868,26 @@ function moveZombies(prevPos) {
 
         newPositions.push(target);
         return target;
+    };
+
+    let iterations = 1;
+    if (worldState.activeEvents.includes('hordeSurge')) iterations = 2;
+
+    zombies = zombies.map(z => {
+        let moved = z;
+        for (let i = 0; i < iterations; i++) {
+            if (worldState.activeEvents.includes('electricalStorm')) {
+                const r = Math.random();
+                if (r < 0.33) {
+                    continue; // skip this iteration
+                }
+                moved = moveOne(moved);
+                if (r > 0.66) moved = moveOne(moved); // move twice
+            } else {
+                moved = moveOne(moved);
+            }
+        }
+        return moved;
     });
 
     zombies.forEach(z => {
