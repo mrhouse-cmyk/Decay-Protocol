@@ -17,9 +17,12 @@ let zombies = [];
 let turn = 0;
 let worldState = { turn: 0 };
 
-function initPlayer(id) {
+function initPlayer(id, data = {}) {
     players[id] = {
         id,
+        username: data.username || 'Guest',
+        name: data.charName || 'Survivor',
+        sex: data.charSex || 'other',
         x: Math.floor(gridSize / 2),
         y: Math.floor(gridSize / 2),
         ap: maxAP,
@@ -110,9 +113,12 @@ function zombieTick() {
 }
 
 io.on('connection', socket => {
-    initPlayer(socket.id);
     socket.emit('connected', { id: socket.id });
-    broadcastGameState();
+
+    socket.on('register', data => {
+        initPlayer(socket.id, data);
+        broadcastGameState();
+    });
 
     socket.on('action', action => handlePlayerAction(socket.id, action));
 

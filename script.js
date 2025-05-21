@@ -1399,7 +1399,25 @@ function log(message, type = 'info') {
 
 // Bind buttons
 window.addEventListener('load', () => {
-    init();
+    const loginEl = document.getElementById('login-screen');
+    const gameEl = document.getElementById('game');
+    const topBar = document.getElementById('top-bar');
+
+    document.getElementById('startButton').addEventListener('click', () => {
+        const username = document.getElementById('username').value.trim();
+        const charName = document.getElementById('charName').value.trim();
+        const charSex = document.getElementById('charSex').value;
+
+        if (serverEnabled) {
+            socket.emit('register', { username, charName, charSex });
+        }
+
+        loginEl.style.display = 'none';
+        gameEl.style.display = '';
+        topBar.style.display = '';
+
+        init();
+    });
 
     const sendAction = act => {
         if (serverEnabled) {
