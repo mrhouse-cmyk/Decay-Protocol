@@ -499,7 +499,7 @@ function createGrid() {
                 searchedAt: -Infinity,
                 visible: false,
                 explored: false,
-                spawnZone: (rand() < 0.05)
+                spawnZone: (Math.random() < 0.05)
             };
             if (type !== 'ocean') assignTileAttributes(areaGrid[y][x]);
             grid.appendChild(cell);
