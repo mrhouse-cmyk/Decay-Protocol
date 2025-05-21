@@ -65,6 +65,26 @@ let player = {
 let zombies = [];
 let companions = [];
 let inventory = [];
+let players = {};
+
+let serverEnabled = typeof io !== 'undefined';
+let socket;
+let myId;
+
+if (serverEnabled) {
+    socket = io();
+    socket.on('connect', () => { myId = socket.id; });
+    socket.on('state', state => {
+        players = state.players || {};
+        zombies = state.zombies || [];
+        turn = state.turn || 0;
+        if (state.worldState) worldState = state.worldState;
+        if (players[myId]) player = players[myId];
+        draw();
+        updateStats();
+        updateTurn();
+    });
+}
 
 let worldState = {
     turn: 0,
@@ -1380,13 +1400,35 @@ function log(message, type = 'info') {
 // Bind buttons
 window.addEventListener('load', () => {
     init();
-    document.getElementById('north').addEventListener('click', () => move(0, -1));
-    document.getElementById('south').addEventListener('click', () => move(0, 1));
-    document.getElementById('west').addEventListener('click', () => move(-1, 0));
-    document.getElementById('east').addEventListener('click', () => move(1, 0));
-    document.getElementById('attack').addEventListener('click', attack);
-    document.getElementById('rest').addEventListener('click', rest);
-    document.getElementById('search').addEventListener('click', search);
+
+    const sendAction = act => {
+        if (serverEnabled) {
+            socket.emit('action', act);
+        } else {
+            switch (act.type) {
+                case 'move':
+                    move(act.dx, act.dy);
+                    break;
+                case 'attack':
+                    attack();
+                    break;
+                case 'rest':
+                    rest();
+                    break;
+                case 'search':
+                    search();
+                    break;
+            }
+        }
+    };
+
+    document.getElementById('north').addEventListener('click', () => sendAction({ type: 'move', dx: 0, dy: -1 }));
+    document.getElementById('south').addEventListener('click', () => sendAction({ type: 'move', dx: 0, dy: 1 }));
+    document.getElementById('west').addEventListener('click', () => sendAction({ type: 'move', dx: -1, dy: 0 }));
+    document.getElementById('east').addEventListener('click', () => sendAction({ type: 'move', dx: 1, dy: 0 }));
+    document.getElementById('attack').addEventListener('click', () => sendAction({ type: 'attack' }));
+    document.getElementById('rest').addEventListener('click', () => sendAction({ type: 'rest' }));
+    document.getElementById('search').addEventListener('click', () => sendAction({ type: 'search' }));
     document.getElementById('use').addEventListener('click', useItem);
     document.getElementById('barricade').addEventListener('click', barricade);
     const craftBtn = document.getElementById('craft');
