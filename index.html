@@ -50,10 +50,15 @@
                     <select id="barricadeSelect" aria-label="Barricade Material"></select>
                     <button id="barricade">Barricade</button>
                 </div>
+                <div class="crafting">
+                    <select id="craftSelect" aria-label="Crafting Recipe"></select>
+                    <button id="craft">Craft</button>
+                </div>
                 <label class="highlight-toggle"><input type="checkbox" id="highlightToggle"> Highlight unexplored</label>
             </div>
             <div id="inventory" aria-label="Inventory">
                 <h3>Inventory</h3>
+                <div id="weight">Weight: <span id="current-weight">0</span>/<span id="max-weight">20</span></div>
                 <div id="inventory-list"></div>
             </div>
             <div id="log" class="log" aria-label="Combat log"></div>
