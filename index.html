@@ -1,1 +1,30 @@
-
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Decay Protocol</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Decay Protocol</h1>
+    <div id="game">
+        <div id="grid"></div>
+        <div id="controls">
+            <button id="north">North</button>
+            <div>
+                <button id="west">West</button>
+                <button id="east">East</button>
+            </div>
+            <button id="south">South</button>
+            <button id="attack" style="display:none;">Attack</button>
+            <button id="rest">Rest</button>
+        </div>
+        <div id="stats">
+            <p>Health: <span id="health">10</span></p>
+            <p>AP: <span id="ap">20</span></p>
+        </div>
+        <div id="log" class="log"></div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
