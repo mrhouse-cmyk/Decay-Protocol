@@ -76,7 +76,7 @@ let players = {};
 // Server connection
 let socket;
 let myId;
-let serverEnabled = typeof io !== 'undefined' && typeof io.connect === 'function';
+let serverEnabled = typeof io === 'function' || (typeof io !== 'undefined' && typeof io.connect === 'function');
 
 if (serverEnabled) {
   // Always connect to the hosted backend so the game works from any origin
