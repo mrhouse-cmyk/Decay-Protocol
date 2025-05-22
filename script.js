@@ -43,34 +43,37 @@ function assignTileAttributes(tile) {
     tile.lootChestOpened = false;
     tile.unlocked = false;
 }
+// Game area and turn counter
 let areaGrid = [];
 let turn = 0;
+
+// Core player state
 let player = {
-    x: 0,
-    y: 0,
-    health: maxHealth,
-    ap: maxAP,
-    hunger: 0,
-    fatigue: 0,
-    conditions: { bleeding: false, infection: false },
-    perks: [],
-    xp: 0,
-    level: 1,
-    class: null,
-    xpToNext: 100,
-    achievements: [],
-    stats: { kills: 0, searches: 0, tilesExplored: 0 },
-    visionRange: 2,
-    maxWeight: 20
+  x: 0,
+  y: 0,
+  health: maxHealth,
+  ap: maxAP,
+  hunger: 0,
+  fatigue: 0,
+  conditions: { bleeding: false, infection: false },
+  perks: [],
+  xp: 0,
+  level: 1,
+  class: null,
+  xpToNext: 100,
+  achievements: [],
+  stats: { kills: 0, searches: 0, tilesExplored: 0 },
+  visionRange: 2,
+  maxWeight: 20
 };
-// Core player/game state
+
+// Other game state
 let zombies = [];
 let companions = [];
 let inventory = [];
 let players = {};
-let player = null;
-let turn = 0;
 let worldState = {};
+
 // Server connection
 let socket;
 let myId;
