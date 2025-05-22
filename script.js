@@ -73,7 +73,8 @@ let socket;
 let myId;
 
 if (serverEnabled) {
-    socket = io();
+    // Always connect to the hosted backend so the game works from any origin
+    socket = io("https://decay-protocol.onrender.com");
     socket.on('connect', () => { myId = socket.id; });
     socket.on('state', state => {
         players = state.players || {};
