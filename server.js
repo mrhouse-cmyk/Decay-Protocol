@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const http = require('http');
 const socketIo = require('socket.io');
 
@@ -16,6 +17,8 @@ let players = {};
 let zombies = [];
 let turn = 0;
 let worldState = { turn: 0 };
+let accounts = {};
+function hashPass(p){return crypto.createHash("sha256").update(p).digest("hex");}
 
 function initPlayer(id, data = {}) {
     players[id] = {
@@ -113,22 +116,46 @@ function zombieTick() {
     broadcastGameState();
 }
 
+
 io.on('connection', socket => {
+    socket.authenticated = false;
     socket.emit('connected', { id: socket.id });
 
+    socket.on('registerAccount', data => {
+        const { email, username, password } = data || {};
+        if (accounts[username]) return socket.emit('registerError', 'Username taken');
+        if (!/^\S+@\S+\.\S+$/.test(email)) return socket.emit('registerError', 'Invalid email');
+        const passwordHash = hashPass(password);
+        accounts[username] = { email, passwordHash, createdAt: new Date().toISOString(), lastLogin: null };
+        socket.emit('registerSuccess');
+    });
+
+    socket.on('login', data => {
+        const { username, password } = data || {};
+        const acc = accounts[username];
+        if (!acc || acc.passwordHash !== hashPass(password)) return socket.emit('loginError', 'Invalid credentials');
+        acc.lastLogin = new Date().toISOString();
+        socket.authenticated = true;
+        socket.username = username;
+        socket.emit('loginSuccess');
+    });
+
     socket.on('register', data => {
-        initPlayer(socket.id, data);
+        if (!socket.authenticated) return;
+        initPlayer(socket.id, { username: socket.username, ...data });
         broadcastGameState();
     });
 
-    socket.on('action', action => handlePlayerAction(socket.id, action));
+    socket.on('action', action => {
+        if (!socket.authenticated) return;
+        handlePlayerAction(socket.id, action);
+    });
 
     socket.on('disconnect', () => {
         delete players[socket.id];
         broadcastGameState();
     });
 });
-
 setInterval(zombieTick, 3000);
 
 app.use(express.static(__dirname));

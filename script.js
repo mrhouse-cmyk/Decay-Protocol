@@ -1422,9 +1422,68 @@ function log(message, type = 'info') {
 
 // Bind buttons
 window.addEventListener('load', () => {
-    const loginEl = document.getElementById('login-screen');
+    const loginView = document.getElementById('account-login');
+    const registerView = document.getElementById('account-register');
+    const charView = document.getElementById('character-screen');
     const gameEl = document.getElementById('game');
     const topBar = document.getElementById('top-bar');
+    const captchaQ = document.getElementById('captcha-question');
+    let captchaA = 0;
+
+    const show = v => {
+        [loginView, registerView, charView].forEach(el => el.style.display = 'none');
+        if (v) v.style.display = 'flex';
+    };
+
+    const genCaptcha = () => {
+        const a = Math.floor(Math.random()*10);
+        const b = Math.floor(Math.random()*10);
+        captchaA = a + b;
+        captchaQ.textContent = `What is ${a} + ${b}?`;
+        document.getElementById('captcha-answer').value = '';
+    };
+
+    genCaptcha();
+    show(loginView);
+
+    document.getElementById('show-register').addEventListener('click', e => {
+        e.preventDefault();
+        genCaptcha();
+        show(registerView);
+    });
+    document.getElementById('show-login').addEventListener('click', e => {
+        e.preventDefault();
+        show(loginView);
+    });
+
+    document.getElementById('loginButton').addEventListener('click', () => {
+        const u = document.getElementById('login-username').value.trim();
+        const p = document.getElementById('login-password').value;
+        if (serverEnabled) socket.emit('login', { username: u, password: p });
+    });
+
+    document.getElementById('registerButton').addEventListener('click', () => {
+        const email = document.getElementById('reg-email').value.trim();
+        const username = document.getElementById('reg-username').value.trim();
+        const password = document.getElementById('reg-password').value;
+        const confirm = document.getElementById('reg-confirm').value;
+        const captcha = document.getElementById('captcha-answer').value.trim();
+        const errorEl = document.getElementById('register-error');
+        const passValid = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$/.test(password);
+        if (!email.match(/^[^@]+@[^@]+\.[^@]+$/)) { errorEl.textContent = 'Invalid email'; return; }
+        if (!passValid) { errorEl.textContent = 'Weak password'; return; }
+        if (password !== confirm) { errorEl.textContent = 'Passwords do not match'; return; }
+        if (parseInt(captcha) !== captchaA) { errorEl.textContent = 'Captcha incorrect'; return; }
+        errorEl.textContent = '';
+        if (serverEnabled) socket.emit('registerAccount', { email, username, password });
+    });
+
+    socket.on('loginSuccess', () => {
+        show(charView);
+    });
+    socket.on('loginError', msg => alert(msg));
+    socket.on('registerSuccess', () => { alert('Account created'); show(loginView); });
+    socket.on('registerError', msg => { document.getElementById('register-error').textContent = msg; });
 
     document.getElementById('startButton').addEventListener('click', () => {
         const username = document.getElementById('username').value.trim();
@@ -1432,18 +1491,12 @@ window.addEventListener('load', () => {
         const charSex = document.getElementById('charSex').value;
         const charClass = document.getElementById('charClass').value;
         player.class = charClass;
-
-        if (serverEnabled) {
-            socket.emit('register', { username, charName, charSex, charClass });
-        }
-
-        loginEl.style.display = 'none';
+        if (serverEnabled) socket.emit('register', { username, charName, charSex, charClass });
+        charView.style.display = 'none';
         gameEl.style.display = '';
         topBar.style.display = '';
-
         init();
     });
-
     const sendAction = act => {
         if (serverEnabled) {
             socket.emit('action', act);
