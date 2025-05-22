@@ -63,29 +63,42 @@ let player = {
     visionRange: 2,
     maxWeight: 20
 };
+// Core player/game state
 let zombies = [];
 let companions = [];
 let inventory = [];
 let players = {};
-
-let serverEnabled = typeof io !== 'undefined';
+let player = null;
+let turn = 0;
+let worldState = {};
+// Server connection
 let socket;
 let myId;
+let serverEnabled = typeof io !== 'undefined' && typeof io.connect === 'function';
 
 if (serverEnabled) {
-    // Always connect to the hosted backend so the game works from any origin
-    socket = io("https://decay-protocol.onrender.com");
-    socket.on('connect', () => { myId = socket.id; });
-    socket.on('state', state => {
-        players = state.players || {};
-        zombies = state.zombies || [];
-        turn = state.turn || 0;
-        if (state.worldState) worldState = state.worldState;
-        if (players[myId]) player = players[myId];
-        draw();
-        updateStats();
-        updateTurn();
-    });
+  // Always connect to the hosted backend so the game works from any origin
+  socket = io("https://decay-protocol.onrender.com");
+  socket.on('connect', () => {
+    myId = socket.id;
+    console.log("✅ Connected to server:", myId);
+  });
+  socket.on('state', (state) => {
+    players = state.players || {};
+    zombies = state.zombies || [];
+    turn = state.turn || 0;
+    if (state.worldState) worldState = state.worldState;
+    if (players[myId]) player = players[myId];
+    draw();
+    updateStats();
+    updateTurn();
+  });
+  socket.on('disconnect', () => {
+    console.warn("⚠️ Disconnected from server.");
+  });
+  socket.on('connect_error', (err) => {
+    console.error("❌ Connection error:", err.message);
+  });
 }
 
 let worldState = {
