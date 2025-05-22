@@ -72,7 +72,6 @@ let zombies = [];
 let companions = [];
 let inventory = [];
 let players = {};
-let worldState = {};
 
 // Server connection
 let socket;
