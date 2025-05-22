@@ -5,17 +5,13 @@ body {
     margin: 0;
 }
 
+.screen{display:none;flex-direction:column;align-items:center;gap:10px;padding-top:20px}
 #game, #top-bar {
     display: none;
 }
 
-#login-screen {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    padding-top: 20px;
-}
+#character-screen{display:none}
+#account-login{display:flex}
 
 #top-bar {
     background: #222;

@@ -6,7 +6,26 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="login-screen">
+    <div id="account-login" class="screen">
+        <h2>Login</h2>
+        <input id="login-username" placeholder="Username" />
+        <input type="password" id="login-password" placeholder="Password" />
+        <button id="loginButton">Login</button>
+        <a href="#" id="show-register">Create Account</a>
+    </div>
+    <div id="account-register" class="screen" style="display:none;">
+        <h2>Create Account</h2>
+        <input id="reg-email" placeholder="Email" />
+        <input id="reg-username" placeholder="Username" />
+        <input type="password" id="reg-password" placeholder="Password" />
+        <input type="password" id="reg-confirm" placeholder="Confirm Password" />
+        <div id="captcha-question"></div>
+        <input id="captcha-answer" placeholder="Answer" />
+        <button id="registerButton">Register</button>
+        <a href="#" id="show-login">Back to Login</a>
+        <div id="register-error" class="error"></div>
+    </div>
+    <div id="character-screen">
         <h2>Create Your Character</h2>
         <input id="username" placeholder="Account Username" />
         <input id="charName" placeholder="Character Name" />
